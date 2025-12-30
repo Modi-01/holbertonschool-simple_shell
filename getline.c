@@ -2,7 +2,7 @@
 
 #define READ_BUF_SIZE 1024
 
-static ssize_t refill_buf(int fd, char *buf, size_t *len, size_t *pos);
+static ssize_t refill_buf(int fd, char *buf, ssize_t *len, ssize_t *pos);
 static int append_char(char **line, size_t *cap, size_t *sz, char c);
 
 /**
@@ -16,21 +16,29 @@ static int append_char(char **line, size_t *cap, size_t *sz, char c);
 ssize_t _getline(char **lineptr, size_t *n, int fd)
 {
 	static char buf[READ_BUF_SIZE];
-	static size_t len, pos;
-	size_t sz = 0;
+	static ssize_t len;
+	static ssize_t pos;
+	size_t cap, sz;
 	ssize_t r;
+	char *line;
 
 	if (!lineptr || !n || fd < 0)
 		return (-1);
 
-	if (*lineptr == NULL || *n == 0)
+	line = *lineptr;
+	cap = *n;
+	sz = 0;
+
+	if (!line || cap == 0)
 	{
-		*n = 128;
-		*lineptr = malloc(*n);
-		if (!*lineptr)
+		cap = 128;
+		line = malloc(cap);
+		if (!line)
 			return (-1);
-		(*lineptr)[0] = '\0';
+		*lineptr = line;
+		*n = cap;
 	}
+	line[0] = '\0';
 
 	while (1)
 	{
@@ -41,10 +49,18 @@ ssize_t _getline(char **lineptr, size_t *n, int fd)
 				break;
 		}
 
-		if (append_char(lineptr, n, &sz, buf[pos++]) == -1)
+		if (append_char(&line, &cap, &sz, buf[pos++]) == -1)
+		{
+			free(line);
+			*lineptr = NULL;
+			*n = 0;
 			return (-1);
+		}
 
-		if ((*lineptr)[sz - 1] == '\n')
+		*lineptr = line;
+		*n = cap;
+
+		if (line[sz - 1] == '\n')
 			return ((ssize_t)sz);
 	}
 
@@ -63,7 +79,7 @@ ssize_t _getline(char **lineptr, size_t *n, int fd)
  *
  * Return: bytes read, 0 on EOF, -1 on error
  */
-static ssize_t refill_buf(int fd, char *buf, size_t *len, size_t *pos)
+static ssize_t refill_buf(int fd, char *buf, ssize_t *len, ssize_t *pos)
 {
 	ssize_t r;
 
@@ -71,14 +87,14 @@ static ssize_t refill_buf(int fd, char *buf, size_t *len, size_t *pos)
 	if (r <= 0)
 		return (r);
 
-	*len = (size_t)r;
+	*len = r;
 	*pos = 0;
 	return (r);
 }
 
 /**
  * append_char - append a character to line buffer, growing if needed
- * @line: pointer to line buffer pointer
+ * @line: pointer to line buffer
  * @cap: pointer to capacity
  * @sz: pointer to current size
  * @c: char to append
@@ -88,14 +104,26 @@ static ssize_t refill_buf(int fd, char *buf, size_t *len, size_t *pos)
 static int append_char(char **line, size_t *cap, size_t *sz, char c)
 {
 	char *tmp;
-	size_t new_cap;
+	size_t new_cap, i;
+
+	if (!line || !*line || !cap || !sz)
+		return (-1);
 
 	if (*sz + 1 >= *cap)
 	{
-		new_cap = (*cap) * 2;
-		tmp = realloc(*line, new_cap);
+		new_cap = (*cap == 0) ? 128 : (*cap * 2);
+		while (new_cap <= *sz + 1)
+			new_cap *= 2;
+
+		tmp = malloc(new_cap);
 		if (!tmp)
 			return (-1);
+
+		for (i = 0; i < *sz; i++)
+			tmp[i] = (*line)[i];
+		tmp[*sz] = '\0';
+
+		free(*line);
 		*line = tmp;
 		*cap = new_cap;
 	}
@@ -103,5 +131,6 @@ static int append_char(char **line, size_t *cap, size_t *sz, char c)
 	(*line)[*sz] = c;
 	(*sz)++;
 	(*line)[*sz] = '\0';
+
 	return (0);
 }
