@@ -6,7 +6,7 @@ static void strip_newline(char *s);
 static int is_blank(char *s);
 
 /**
- * run_shell - simple shell 0.3 (arguments + PATH + no fork if not found)
+ * run_shell - simple shell 0.4 (0.3 + exit builtin)
  * @argv0: program name
  *
  * Return: last status
@@ -45,6 +45,12 @@ int run_shell(char *argv0)
 		{
 			free_tokens(tokens);
 			continue;
+		}
+
+		if (handle_builtins(tokens))
+		{
+			free_tokens(tokens);
+			break;
 		}
 
 		execute_tokens(tokens, argv0, ln, &status);

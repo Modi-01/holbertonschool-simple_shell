@@ -24,4 +24,7 @@ char *resolve_path(char *cmd);
 int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status);
 void print_error(char *argv0, unsigned long ln, char *cmd, char *msg);
 
+/* builtins.c */
+int handle_builtins(char **tokens);
+
 #endif /* HSH_H */
