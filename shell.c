@@ -20,6 +20,7 @@ int run_shell(char *argv0)
 	int status = 0;
 	int interactive = interactive_mode();
 	char **tokens = NULL;
+	int bret;
 
 	while (1)
 	{
@@ -47,10 +48,16 @@ int run_shell(char *argv0)
 			continue;
 		}
 
-		if (handle_builtins(tokens, &status))
+		bret = handle_builtins(tokens, &status);
+		if (bret == 1)
 		{
 			free_tokens(tokens);
 			break;
+		}
+		if (bret == 2)
+		{
+			free_tokens(tokens);
+			continue;
 		}
 
 		execute_tokens(tokens, argv0, ln, &status);
@@ -116,5 +123,6 @@ static int is_blank(char *s)
 			return (0);
 		i++;
 	}
+
 	return (1);
 }
