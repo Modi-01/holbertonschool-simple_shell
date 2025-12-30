@@ -13,22 +13,22 @@ char *resolve_path(char *cmd)
 	char *path, *copy, *dir, *full;
 	size_t len;
 
-	if (!cmd || strchr(cmd, '/'))
+	if (!cmd || _strchr(cmd, '/'))
 		return (NULL);
 
 	path = _getenv("PATH");
 	if (!path)
 		return (NULL);
 
-	copy = malloc(strlen(path) + 1);
+	copy = malloc(_strlen(path) + 1);
 	if (!copy)
 		return (NULL);
-	strcpy(copy, path);
+	_strcpy(copy, path);
 
 	dir = strtok(copy, ":");
 	while (dir)
 	{
-		len = strlen(dir) + 1 + strlen(cmd) + 1;
+		len = _strlen(dir) + 1 + _strlen(cmd) + 1;
 		full = malloc(len);
 		if (!full)
 		{
@@ -36,9 +36,9 @@ char *resolve_path(char *cmd)
 			return (NULL);
 		}
 
-		strcpy(full, dir);
-		strcat(full, "/");
-		strcat(full, cmd);
+		_strcpy(full, dir);
+		_strcat(full, "/");
+		_strcat(full, cmd);
 
 		if (access(full, X_OK) == 0)
 		{
@@ -67,7 +67,7 @@ static char *_getenv(char *name)
 	if (!name)
 		return (NULL);
 
-	len = strlen(name);
+	len = _strlen(name);
 	for (i = 0; environ[i]; i++)
 	{
 		if (strncmp(environ[i], name, len) == 0 && environ[i][len] == '=')

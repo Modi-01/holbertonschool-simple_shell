@@ -15,10 +15,10 @@ char **split_line(char *line)
 	if (!line)
 		return (NULL);
 
-	copy = malloc(strlen(line) + 1);
+	copy = malloc(_strlen(line) + 1);
 	if (!copy)
 		return (NULL);
-	strcpy(copy, line);
+	_strcpy(copy, line);
 
 	tok = strtok(copy, " \t");
 	while (tok)

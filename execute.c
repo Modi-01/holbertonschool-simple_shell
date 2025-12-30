@@ -71,7 +71,7 @@ static char *resolve_cmd(char *cmd, int *code, char *argv0, unsigned long ln)
 	if (!cmd || cmd[0] == '\0')
 		return (NULL);
 
-	if (strchr(cmd, '/'))
+	if (_strchr(cmd, '/'))
 	{
 		if (access(cmd, F_OK) != 0)
 		{
@@ -91,7 +91,7 @@ static char *resolve_cmd(char *cmd, int *code, char *argv0, unsigned long ln)
 			*code = 2;
 			return (NULL);
 		}
-		strcpy(path, cmd);
+		_strcpy(path, cmd);
 		return (path);
 	}
 

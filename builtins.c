@@ -17,10 +17,10 @@ int handle_builtins(char **tokens, int *status)
 	if (!tokens || !tokens[0])
 		return (0);
 
-	if (strcmp(tokens[0], "exit") == 0)
+	if (_strcmp(tokens[0], "exit") == 0)
 		return (1);
 
-	if (strcmp(tokens[0], "env") == 0)
+	if (_strcmp(tokens[0], "env") == 0)
 	{
 		print_env();
 		if (status)
@@ -41,7 +41,7 @@ static void print_env(void)
 
 	while (environ && environ[i])
 	{
-		len = strlen(environ[i]);
+		len = _strlen(environ[i]);
 		write(STDOUT_FILENO, environ[i], len);
 		write(STDOUT_FILENO, "\n", 1);
 		i++;

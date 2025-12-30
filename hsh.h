@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <string.h>
 #include <errno.h>
 
 extern char **environ;
@@ -29,5 +28,10 @@ int handle_builtins(char **tokens, int *status);
 
 /* getline.c */
 ssize_t _getline(char **lineptr, size_t *n, int fd);
+
+size_t _strlen(const char *s);
+int _strcmp(const char *s1, const char *s2);
+char *_strcpy(char *dest, const char *src);
+char *_strchr(const char *s, int c);
 
 #endif /* HSH_H */
