@@ -1,10 +1,10 @@
 #include "hsh.h"
 
 /**
- * split_line - split input line into tokens (space/tab delimiters)
- * @line: input line (will be modified by strtok)
+ * split_line - split a line into tokens (supports arguments)
+ * @line: input line (modified in-place)
  *
- * Return: NULL-terminated array of tokens
+ * Return: NULL-terminated array of tokens or NULL
  */
 char **split_line(char *line)
 {
@@ -47,8 +47,8 @@ char **split_line(char *line)
 }
 
 /**
- * free_tokens - free tokens array (does not free token strings)
- * @tokens: token array
+ * free_tokens - free tokens array
+ * @tokens: array returned by split_line
  */
 void free_tokens(char **tokens)
 {

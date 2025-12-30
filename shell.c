@@ -1,31 +1,30 @@
 #include "hsh.h"
 
 static int interactive_mode(void);
-static int is_number(char *s);
-static int str_to_int(char *s);
-static int handle_builtin(char **tokens, int *status, char *argv0,
-		unsigned long ln);
+static void print_prompt(void);
+static void strip_newline(char *s);
+static int is_blank(char *s);
 
 /**
- * run_shell - main shell loop
- * @argv0: program name (av[0])
+ * run_shell - simple shell 0.3 (arguments + PATH + no fork if not found)
+ * @argv0: program name
  *
- * Return: exit status
+ * Return: last status
  */
 int run_shell(char *argv0)
 {
 	char *line = NULL;
 	size_t n = 0;
 	ssize_t r;
-	char **tokens = NULL;
 	unsigned long ln = 0;
 	int status = 0;
 	int interactive = interactive_mode();
+	char **tokens = NULL;
 
 	while (1)
 	{
 		if (interactive)
-			write(STDOUT_FILENO, "($) ", 4);
+			print_prompt();
 
 		r = getline(&line, &n, stdin);
 		if (r == -1)
@@ -36,8 +35,10 @@ int run_shell(char *argv0)
 		}
 
 		ln++;
-		if (r > 0 && line[r - 1] == '\n')
-			line[r - 1] = '\0';
+		strip_newline(line);
+
+		if (is_blank(line))
+			continue;
 
 		tokens = split_line(line);
 		if (!tokens || !tokens[0])
@@ -46,13 +47,7 @@ int run_shell(char *argv0)
 			continue;
 		}
 
-		if (handle_builtin(tokens, &status, argv0, ln))
-		{
-			free_tokens(tokens);
-			break;
-		}
-
-		execute_cmd(tokens, ln, argv0, &status);
+		execute_tokens(tokens, argv0, ln, &status);
 		free_tokens(tokens);
 	}
 
@@ -61,7 +56,7 @@ int run_shell(char *argv0)
 }
 
 /**
- * interactive_mode - check if shell is running in interactive mode
+ * interactive_mode - check if stdin is a terminal
  *
  * Return: 1 if interactive, 0 otherwise
  */
@@ -71,77 +66,49 @@ static int interactive_mode(void)
 }
 
 /**
- * handle_builtin - handle built-in commands
- * @tokens: tokenized command
- * @status: pointer to last status
- * @argv0: program name
- * @ln: line number
- *
- * Return: 1 if should exit shell, 0 otherwise
+ * print_prompt - display prompt
  */
-static int handle_builtin(char **tokens, int *status, char *argv0,
-		unsigned long ln)
+static void print_prompt(void)
 {
-	int code;
-
-	if (strcmp(tokens[0], "exit") != 0)
-		return (0);
-
-	if (!tokens[1])
-		return (1);
-
-	if (!is_number(tokens[1]))
-	{
-		print_error(argv0, ln, "exit", "Illegal number");
-		*status = 2;
-		return (0);
-	}
-
-	code = str_to_int(tokens[1]);
-	*status = code % 256;
-	return (1);
+	write(STDOUT_FILENO, "($) ", 4);
 }
 
 /**
- * is_number - check if string is a valid number (optional leading +)
+ * strip_newline - remove trailing newline
+ * @s: string
+ */
+static void strip_newline(char *s)
+{
+	size_t i = 0;
+
+	if (!s)
+		return;
+
+	while (s[i] != '\0')
+		i++;
+
+	if (i > 0 && s[i - 1] == '\n')
+		s[i - 1] = '\0';
+}
+
+/**
+ * is_blank - check if line contains only spaces/tabs or is empty
  * @s: string
  *
- * Return: 1 if number, 0 otherwise
+ * Return: 1 if blank, 0 otherwise
  */
-static int is_number(char *s)
+static int is_blank(char *s)
 {
-	int i = 0;
+	size_t i = 0;
 
-	if (!s || !s[0])
-		return (0);
+	if (!s || s[0] == '\0')
+		return (1);
 
-	if (s[0] == '+')
-		i++;
-
-	for (; s[i]; i++)
+	while (s[i])
 	{
-		if (s[i] < '0' || s[i] > '9')
+		if (s[i] != ' ' && s[i] != '\t')
 			return (0);
+		i++;
 	}
 	return (1);
-}
-
-/**
- * str_to_int - convert numeric string to int (non-negative)
- * @s: numeric string
- *
- * Return: integer value
- */
-static int str_to_int(char *s)
-{
-	int i = 0;
-	int res = 0;
-
-	if (s[0] == '+')
-		i++;
-
-	for (; s[i]; i++)
-		res = (res * 10) + (s[i] - '0');
-
-	return (res);
 }

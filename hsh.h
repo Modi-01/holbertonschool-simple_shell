@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <string.h>
 #include <errno.h>
@@ -19,10 +18,10 @@ char **split_line(char *line);
 void free_tokens(char **tokens);
 
 /* path.c */
-char *find_in_path(char *cmd);
+char *resolve_path(char *cmd);
 
 /* execute.c */
-int execute_cmd(char **tokens, unsigned long ln, char *argv0, int *status);
+int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status);
 void print_error(char *argv0, unsigned long ln, char *cmd, char *msg);
 
 #endif /* HSH_H */

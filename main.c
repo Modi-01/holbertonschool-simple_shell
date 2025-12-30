@@ -1,11 +1,11 @@
 #include "hsh.h"
 
 /**
- * main - Entry point for hsh shell
+ * main - Entry point
  * @ac: argument count
  * @av: argument vector
  *
- * Return: exit status
+ * Return: shell status
  */
 int main(int ac, char **av)
 {

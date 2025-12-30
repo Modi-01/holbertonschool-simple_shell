@@ -1,14 +1,14 @@
 #include "hsh.h"
 
-static void child_exec(char **tokens, unsigned long ln, char *argv0);
-static void parent_wait(pid_t pid, char *cmd, unsigned long ln,
-		char *argv0, int *status);
+static char *resolve_cmd(char *cmd, int *code, char *argv0, unsigned long ln);
+static void child_exec(char *path, char **tokens, char *argv0, unsigned long ln);
+static void parent_wait(pid_t pid, int *status);
 
 /**
- * print_error - print error message in sh-like format
- * @argv0: program name
+ * print_error - print sh-like error: argv0: ln: cmd: msg
+ * @argv0: program name (av[0])
  * @ln: line number
- * @cmd: command name
+ * @cmd: command
  * @msg: message
  */
 void print_error(char *argv0, unsigned long ln, char *cmd, char *msg)
@@ -17,79 +17,121 @@ void print_error(char *argv0, unsigned long ln, char *cmd, char *msg)
 }
 
 /**
- * execute_cmd - fork and execute command
+ * execute_tokens - execute command with PATH handling
  * @tokens: tokenized command
- * @ln: line number
  * @argv0: program name
+ * @ln: line number
  * @status: pointer to last status
  *
- * Return: 0 on success path, -1 on fork error
+ * Return: 0 always (status updated)
  */
-int execute_cmd(char **tokens, unsigned long ln, char *argv0, int *status)
+int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status)
 {
+	char *path;
 	pid_t pid;
+	int code = 0;
+
+	path = resolve_cmd(tokens[0], &code, argv0, ln);
+	if (!path)
+	{
+		*status = code;
+		return (0);
+	}
 
 	pid = fork();
 	if (pid == -1)
 	{
-		print_error(argv0, ln, tokens[0], "fork failed");
+		free(path);
 		*status = 2;
-		return (-1);
+		return (0);
 	}
 
 	if (pid == 0)
-		child_exec(tokens, ln, argv0);
+		child_exec(path, tokens, argv0, ln);
 
-	parent_wait(pid, tokens[0], ln, argv0, status);
+	parent_wait(pid, status);
+	free(path);
 	return (0);
 }
 
 /**
- * child_exec - execute command in child process
- * @tokens: tokenized command
- * @ln: line number
+ * resolve_cmd - resolve command path and ensure it exists before fork
+ * @cmd: command token
+ * @code: output error code (127/126)
  * @argv0: program name
+ * @ln: line number
+ *
+ * Return: malloc'd path to exec or NULL
  */
-static void child_exec(char **tokens, unsigned long ln, char *argv0)
+static char *resolve_cmd(char *cmd, int *code, char *argv0, unsigned long ln)
 {
-	char *resolved = NULL;
+	char *path;
 
-	if (strchr(tokens[0], '/'))
-		execve(tokens[0], tokens, environ);
+	*code = 0;
+	if (!cmd || cmd[0] == '\0')
+		return (NULL);
 
-	resolved = find_in_path(tokens[0]);
-	if (!resolved)
+	if (strchr(cmd, '/'))
 	{
-		print_error(argv0, ln, tokens[0], "not found");
-		exit(127);
+		if (access(cmd, F_OK) != 0)
+		{
+			print_error(argv0, ln, cmd, "not found");
+			*code = 127;
+			return (NULL);
+		}
+		if (access(cmd, X_OK) != 0)
+		{
+			print_error(argv0, ln, cmd, "Permission denied");
+			*code = 126;
+			return (NULL);
+		}
+		path = malloc(strlen(cmd) + 1);
+		if (!path)
+		{
+			*code = 2;
+			return (NULL);
+		}
+		strcpy(path, cmd);
+		return (path);
 	}
 
-	execve(resolved, tokens, environ);
+	path = resolve_path(cmd);
+	if (!path)
+	{
+		print_error(argv0, ln, cmd, "not found");
+		*code = 127;
+	}
+	return (path);
+}
+
+/**
+ * child_exec - execve in child
+ * @path: resolved path (malloc'd)
+ * @tokens: argv for execve
+ * @argv0: program name
+ * @ln: line number
+ */
+static void child_exec(char *path, char **tokens, char *argv0, unsigned long ln)
+{
+	execve(path, tokens, environ);
 	print_error(argv0, ln, tokens[0], strerror(errno));
-	free(resolved);
 	exit(errno == EACCES ? 126 : 127);
 }
 
 /**
- * parent_wait - wait for child and set status
+ * parent_wait - wait for child and update status
  * @pid: child pid
- * @cmd: command name
- * @ln: line number
- * @argv0: program name
  * @status: pointer to last status
  */
-static void parent_wait(pid_t pid, char *cmd, unsigned long ln,
-		char *argv0, int *status)
+static void parent_wait(pid_t pid, int *status)
 {
 	int wstatus;
 
 	if (waitpid(pid, &wstatus, 0) == -1)
 	{
-		print_error(argv0, ln, cmd, "waitpid failed");
 		*status = 2;
 		return;
 	}
-
 	if (WIFEXITED(wstatus))
 		*status = WEXITSTATUS(wstatus);
 	else

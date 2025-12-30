@@ -3,15 +3,14 @@
 static char *_getenv(char *name);
 
 /**
- * find_in_path - search for command in PATH
- * @cmd: command name
+ * resolve_path - resolve command using PATH (cmd without '/')
+ * @cmd: command name (e.g., "ls")
  *
  * Return: malloc'd full path if found, NULL otherwise
  */
-char *find_in_path(char *cmd)
+char *resolve_path(char *cmd)
 {
-	char *path, *copy, *dir;
-	char *full;
+	char *path, *copy, *dir, *full;
 	size_t len;
 
 	if (!cmd || strchr(cmd, '/'))
@@ -56,10 +55,10 @@ char *find_in_path(char *cmd)
 }
 
 /**
- * _getenv - get environment variable value without using getenv
+ * _getenv - get environment variable value from environ
  * @name: env key
  *
- * Return: pointer to value inside environ, or NULL
+ * Return: pointer to value inside environ or NULL
  */
 static char *_getenv(char *name)
 {
