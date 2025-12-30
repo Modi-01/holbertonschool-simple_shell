@@ -6,7 +6,7 @@ static void strip_newline(char *s);
 static int is_blank(char *s);
 
 /**
- * run_shell - simple shell 1.0 (0.4 + env builtin)
+ * run_shell - simple shell 1.0 (PATH + args + exit/env) using custom _getline
  * @argv0: program name
  *
  * Return: last status
@@ -20,14 +20,13 @@ int run_shell(char *argv0)
 	int status = 0;
 	int interactive = interactive_mode();
 	char **tokens = NULL;
-	int bret;
 
 	while (1)
 	{
 		if (interactive)
 			print_prompt();
 
-		r = getline(&line, &n, stdin);
+		r = _getline(&line, &n, STDIN_FILENO);
 		if (r == -1)
 		{
 			if (interactive)
@@ -48,16 +47,10 @@ int run_shell(char *argv0)
 			continue;
 		}
 
-		bret = handle_builtins(tokens, &status);
-		if (bret == 1)
+		if (handle_builtins(tokens, &status))
 		{
 			free_tokens(tokens);
 			break;
-		}
-		if (bret == 2)
-		{
-			free_tokens(tokens);
-			continue;
 		}
 
 		execute_tokens(tokens, argv0, ln, &status);
@@ -123,6 +116,5 @@ static int is_blank(char *s)
 			return (0);
 		i++;
 	}
-
 	return (1);
 }
