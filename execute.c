@@ -6,7 +6,7 @@ static void parent_wait(pid_t pid, int *status);
 
 /**
  * print_error - print sh-like error: argv0: ln: cmd: msg
- * @argv0: program name (av[0])
+ * @argv0: program name
  * @ln: line number
  * @cmd: command
  * @msg: message
@@ -85,7 +85,8 @@ static char *resolve_cmd(char *cmd, int *code, char *argv0, unsigned long ln)
 			*code = 126;
 			return (NULL);
 		}
-		path = malloc(strlen(cmd) + 1);
+
+		path = malloc(_strlen(cmd) + 1);
 		if (!path)
 		{
 			*code = 2;
@@ -114,7 +115,12 @@ static char *resolve_cmd(char *cmd, int *code, char *argv0, unsigned long ln)
 static void child_exec(char *path, char **tokens, char *argv0, unsigned long ln)
 {
 	execve(path, tokens, environ);
-	print_error(argv0, ln, tokens[0], strerror(errno));
+
+	if (errno == EACCES)
+		print_error(argv0, ln, tokens[0], "Permission denied");
+	else
+		print_error(argv0, ln, tokens[0], "not found");
+
 	exit(errno == EACCES ? 126 : 127);
 }
 
@@ -132,6 +138,7 @@ static void parent_wait(pid_t pid, int *status)
 		*status = 2;
 		return;
 	}
+
 	if (WIFEXITED(wstatus))
 		*status = WEXITSTATUS(wstatus);
 	else

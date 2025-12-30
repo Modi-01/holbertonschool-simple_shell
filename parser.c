@@ -8,41 +8,51 @@
  */
 char **split_line(char *line)
 {
-	char *copy, *tok;
-	size_t count = 0, i = 0;
+	size_t i = 0, count = 0, j = 0;
 	char **tokens;
 
 	if (!line)
 		return (NULL);
 
-	copy = malloc(_strlen(line) + 1);
-	if (!copy)
-		return (NULL);
-	_strcpy(copy, line);
-
-	tok = strtok(copy, " \t");
-	while (tok)
+	/* first pass: count tokens */
+	while (line[i])
 	{
+		while (line[i] == ' ' || line[i] == '\t')
+			i++;
+
+		if (line[i] == '\0')
+			break;
+
 		count++;
-		tok = strtok(NULL, " \t");
+
+		while (line[i] && line[i] != ' ' && line[i] != '\t')
+			i++;
 	}
 
 	tokens = malloc(sizeof(char *) * (count + 1));
 	if (!tokens)
-	{
-		free(copy);
 		return (NULL);
-	}
 
-	tok = strtok(line, " \t");
-	while (tok)
+	/* second pass: store pointers and null-terminate tokens */
+	i = 0;
+	while (line[i])
 	{
-		tokens[i++] = tok;
-		tok = strtok(NULL, " \t");
-	}
-	tokens[i] = NULL;
+		while (line[i] == ' ' || line[i] == '\t')
+		{
+			line[i] = '\0';
+			i++;
+		}
 
-	free(copy);
+		if (line[i] == '\0')
+			break;
+
+		tokens[j++] = &line[i];
+
+		while (line[i] && line[i] != ' ' && line[i] != '\t')
+			i++;
+	}
+
+	tokens[j] = NULL;
 	return (tokens);
 }
 

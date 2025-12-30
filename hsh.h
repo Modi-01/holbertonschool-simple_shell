@@ -29,9 +29,14 @@ int handle_builtins(char **tokens, int *status);
 /* getline.c */
 ssize_t _getline(char **lineptr, size_t *n, int fd);
 
+/* string helpers */
 size_t _strlen(const char *s);
 int _strcmp(const char *s1, const char *s2);
 char *_strcpy(char *dest, const char *src);
 char *_strchr(const char *s, int c);
+
+/* ADD THESE */
+char *_strcat(char *dest, const char *src);
+int _strncmp(const char *s1, const char *s2, size_t n);
 
 #endif /* HSH_H */
