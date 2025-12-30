@@ -27,4 +27,7 @@ void print_error(char *argv0, unsigned long ln, char *cmd, char *msg);
 /* builtins.c */
 int handle_builtins(char **tokens, int *status);
 
+/* getline.c */
+ssize_t _getline(char **lineptr, size_t *n, int fd);
+
 #endif /* HSH_H */
