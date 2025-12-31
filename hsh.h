@@ -5,57 +5,50 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <errno.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/types.h>
 #include <signal.h>
+
+#define READ_BUF_SIZE 1024
 
 extern char **environ;
 
-/* globals used for exact error formatting */
-extern char *g_argv0;
-extern unsigned long g_ln;
+/**
+ * struct shell_ctx - execution context
+ * @av0: program name (argv[0])
+ * @line_num: current command line number
+ * @interactive: 1 if interactive, 0 otherwise
+ * @should_exit: 1 if shell must exit, 0 otherwise
+ * @exit_status: status code to exit with
+ * @env: owned copy of environment (NULL if not initialized)
+ */
+typedef struct shell_ctx
+{
+	char *av0;
+	unsigned long line_num;
+	int interactive;
+	int should_exit;
+	int exit_status;
+	char **env;
+} shell_ctx_t;
 
-/* shell.c */
-int run_shell(char *argv0);
+void shell_loop(shell_ctx_t *ctx);
 
-/* parser.c */
-char **split_line(char *line);
-void free_tokens(char **tokens);
+char **split_args(char *line);
+void free_args(char **argv);
+int execute_argv(shell_ctx_t *ctx, char **argv);
 
-/* path.c */
-char *resolve_path(char *cmd);
+int handle_builtins(shell_ctx_t *ctx, char **argv);
 
-/* execute.c */
-int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status);
-void print_error(char *argv0, unsigned long ln, char *cmd, char *msg);
+ssize_t my_getline(char **lineptr, size_t *n, int fd);
 
-/* builtins.c */
-int handle_builtins(char **tokens, int *status);
+void sigint_handler(int sig);
 
-/* getline.c */
-ssize_t _getline(char **lineptr, size_t *n, int fd);
-
-/* string helpers */
-size_t _strlen(const char *s);
-int _strcmp(const char *s1, const char *s2);
-int _strncmp(const char *s1, const char *s2, size_t n);
-char *_strcpy(char *dest, const char *src);
-char *_strchr(const char *s, int c);
-char *_strcat(char *dest, const char *src);
-
-/* env_builtins.c */
-int builtin_setenv(char **tokens, int *status);
-int builtin_unsetenv(char **tokens, int *status);
-
-/* env.c */
-int shell_setenv(const char *name, const char *value);
-int shell_unsetenv(const char *name);
-
-/* cleanup.c */
-void cleanup_env(void);
-
-/* ====== ADD THIS ====== */
-int builtin_cd(char **tokens, int *status);
-/* ====================== */
+/* Environment management */
+int env_init(shell_ctx_t *ctx);
+void env_free(shell_ctx_t *ctx);
+int env_set(shell_ctx_t *ctx, const char *name, const char *value);
+int env_unset(shell_ctx_t *ctx, const char *name);
 
 #endif /* HSH_H */
