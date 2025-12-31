@@ -1,233 +1,111 @@
 #include "hsh.h"
 
-static char *get_env_value(const char *name)
+/**
+ * is_number - check if a string is a valid non-negative integer
+ * @s: string to check
+ *
+ * Return: 1 if number, 0 otherwise
+ */
+static int is_number(const char *s)
 {
-	int i;
-	size_t nlen;
+	size_t i;
 
-	if (!name || !environ)
-		return (NULL);
+	if (s == NULL || s[0] == '\0')
+		return (0);
 
-	nlen = _strlen(name);
-
-	for (i = 0; environ[i]; i++)
+	for (i = 0; s[i] != '\0'; i++)
 	{
-		if (_strncmp(environ[i], name, nlen) == 0 &&
-		    environ[i][nlen] == '=')
-			return (environ[i] + nlen + 1);
+		if (s[i] < '0' || s[i] > '9')
+			return (0);
 	}
-	return (NULL);
-}
 
-static char *getcwd_alloc(void)
-{
-	char *buf;
-	size_t size;
-
-	size = 128;
-	while (1)
-	{
-		buf = malloc(size);
-		if (!buf)
-			return (NULL);
-
-		if (getcwd(buf, size) != NULL)
-			return (buf);
-
-		free(buf);
-		if (errno != ERANGE)
-			return (NULL);
-
-		size *= 2;
-	}
-}
-
-static void print_env_stdout(void)
-{
-	int i;
-	char *line;
-
-	i = 0;
-	while (environ && environ[i])
-	{
-		line = environ[i];
-		write(STDOUT_FILENO, line, _strlen(line));
-		write(STDOUT_FILENO, "\n", 1);
-		i++;
-	}
-}
-
-static char *build_cd_errmsg(const char *dir)
-{
-	size_t len1, len2;
-	char *msg;
-
-	if (!dir)
-		dir = "";
-
-	len1 = _strlen("can't cd to ");
-	len2 = _strlen(dir);
-
-	msg = malloc(len1 + len2 + 2);
-	if (!msg)
-		return (NULL);
-
-	_strcpy(msg, "can't cd to ");
-	_strcpy(msg + len1, dir);
-	msg[len1 + len2] = '\n';
-	msg[len1 + len2 + 1] = '\0';
-
-	return (msg);
+	return (1);
 }
 
 /**
- * builtin_cd - change current directory
- * @tokens: tokenized input
- * @status: pointer to last status
+ * to_exit_status - convert numeric string to exit status (0-255)
+ * @s: numeric string
  *
- * Return: 0 always (shell continues)
+ * Return: exit status
  */
-int builtin_cd(char **tokens, int *status)
+static int to_exit_status(const char *s)
 {
-	char *oldpwd, *newpwd, *target;
-	int print_newpwd;
+	unsigned long n;
+	size_t i;
 
-	print_newpwd = 0;
-	oldpwd = getcwd_alloc();
-	if (!oldpwd)
-	{
-		print_error(g_argv0, g_ln, "cd", "failed\n");
-		*status = 2;
-		return (0);
-	}
+	n = 0;
+	for (i = 0; s[i] != '\0'; i++)
+		n = n * 10 + (unsigned long)(s[i] - '0');
 
-	if (!tokens[1])
-	{
-		target = get_env_value("HOME");
-		if (!target)
-		{
-			free(oldpwd);
-			print_error(g_argv0, g_ln, "cd", "HOME not set\n");
-			*status = 2;
-			return (0);
-		}
-	}
-	else if (_strcmp(tokens[1], "-") == 0)
-	{
-		target = get_env_value("OLDPWD");
-		if (!target)
-		{
-			free(oldpwd);
-			print_error(g_argv0, g_ln, "cd", "OLDPWD not set\n");
-			*status = 2;
-			return (0);
-		}
-		print_newpwd = 1;
-	}
-	else
-	{
-		if (tokens[2])
-		{
-			free(oldpwd);
-			print_error(g_argv0, g_ln, "cd", "too many arguments\n");
-			*status = 2;
-			return (0);
-		}
-		target = tokens[1];
-	}
-
-	if (chdir(target) == -1)
-	{
-		char *msg;
-
-		msg = build_cd_errmsg(target);
-		if (msg)
-		{
-			print_error(g_argv0, g_ln, "cd", msg);
-			free(msg);
-		}
-		else
-			print_error(g_argv0, g_ln, "cd", "failed\n");
-
-		free(oldpwd);
-		*status = 2;
-		return (0);
-	}
-
-	newpwd = getcwd_alloc();
-	if (!newpwd)
-	{
-		free(oldpwd);
-		print_error(g_argv0, g_ln, "cd", "failed\n");
-		*status = 2;
-		return (0);
-	}
-
-	(void)shell_setenv("OLDPWD", oldpwd);
-	(void)shell_setenv("PWD", newpwd);
-
-	if (print_newpwd)
-	{
-		write(STDOUT_FILENO, newpwd, _strlen(newpwd));
-		write(STDOUT_FILENO, "\n", 1);
-	}
-
-	free(oldpwd);
-	free(newpwd);
-	*status = 0;
-	return (0);
+	return ((int)(n % 256));
 }
 
 /**
- * handle_builtins - handle shell builtins
- * @tokens: tokenized input
- * @status: pointer to last command status
+ * builtin_error - print builtin failure message to stderr
+ * @ctx: shell context
+ * @name: builtin name
+ * @msg: message
  *
- * Return: 1 if should exit shell, 0 otherwise
+ * Return: void
  */
-int handle_builtins(char **tokens, int *status)
+static void builtin_error(shell_ctx_t *ctx, const char *name, const char *msg)
 {
-	int i;
-	char *env_line;
+	dprintf(STDERR_FILENO, "%s: %lu: %s: %s\n",
+		ctx->av0, ctx->line_num, name, msg);
+}
 
-	if (!tokens || !tokens[0])
+/**
+ * handle_builtins - handle built-in commands
+ * @ctx: shell context
+ * @argv: command argv
+ *
+ * Return: 1 if handled as builtin, 0 otherwise
+ */
+int handle_builtins(shell_ctx_t *ctx, char **argv)
+{
+	if (argv == NULL || argv[0] == NULL)
 		return (0);
 
-	if (_strcmp(tokens[0], "env") == 0)
+	if (strcmp(argv[0], "exit") == 0)
 	{
-		print_env_stdout();
-		*status = 0;
-		return (0);
-	}
+		ctx->should_exit = 1;
+		ctx->exit_status = 0;
 
-	if (_strcmp(tokens[0], "setenv") == 0)
-		return (builtin_setenv(tokens, status));
+		if (argv[1] != NULL && is_number(argv[1]))
+			ctx->exit_status = to_exit_status(argv[1]);
 
-	if (_strcmp(tokens[0], "unsetenv") == 0)
-		return (builtin_unsetenv(tokens, status));
-
-	if (_strcmp(tokens[0], "cd") == 0)
-		return (builtin_cd(tokens, status));
-
-	if (_strcmp(tokens[0], "exit") == 0)
-	{
-		if (!tokens[1])
-			return (1);
-
-		for (i = 0; tokens[1][i]; i++)
-		{
-			if (tokens[1][i] < '0' || tokens[1][i] > '9')
-			{
-				print_error(g_argv0, g_ln, "exit",
-					"Illegal number\n");
-				*status = 2;
-				return (0);
-			}
-		}
-		*status = atoi(tokens[1]);
 		return (1);
 	}
 
-	(void)env_line;
+	if (strcmp(argv[0], "setenv") == 0)
+	{
+		if (argv[1] == NULL || argv[2] == NULL || argv[3] != NULL)
+		{
+			builtin_error(ctx, "setenv", "usage: setenv VARIABLE VALUE");
+			return (1);
+		}
+		if (env_set(ctx, argv[1], argv[2]) == -1)
+		{
+			builtin_error(ctx, "setenv", "failed");
+			return (1);
+		}
+		return (1);
+	}
+
+	if (strcmp(argv[0], "unsetenv") == 0)
+	{
+		if (argv[1] == NULL || argv[2] != NULL)
+		{
+			builtin_error(ctx, "unsetenv", "usage: unsetenv VARIABLE");
+			return (1);
+		}
+		if (env_unset(ctx, argv[1]) == -1)
+		{
+			builtin_error(ctx, "unsetenv", "failed");
+			return (1);
+		}
+		return (1);
+	}
+
 	return (0);
 }
