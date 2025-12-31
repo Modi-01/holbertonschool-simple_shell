@@ -1,24 +1,55 @@
 #include "hsh.h"
-#include <limits.h>
+
+static int is_unsigned_number(char *s);
+static unsigned long to_ulong(char *s);
+static void print_illegal_exit(char *argv0, unsigned long ln, char *arg);
 
 /**
- * is_number - check if string is a valid integer (optional + or -)
- * @s: string
+ * handle_builtins - handle built-in commands
+ * @tokens: command tokens
+ * @status: last status (in/out)
  *
- * Return: 1 if valid, 0 otherwise
+ * Return: 1 if shell should stop, 0 otherwise
  */
-static int is_number(char *s)
+int handle_builtins(char **tokens, int *status)
 {
-	size_t i = 0;
+	unsigned long code;
+
+	if (!tokens || !tokens[0])
+		return (0);
+
+	if (_strcmp(tokens[0], "exit") == 0)
+	{
+		if (!tokens[1])
+			return (1);
+
+		if (!is_unsigned_number(tokens[1]))
+		{
+			print_illegal_exit(tokens[-1], 0, tokens[1]);
+			*status = 2;
+			return (0);
+		}
+
+		code = to_ulong(tokens[1]);
+		*status = (int)(code % 256);
+		return (1);
+	}
+
+	return (0);
+}
+
+static int is_unsigned_number(char *s)
+{
+	size_t i;
 
 	if (!s || s[0] == '\0')
 		return (0);
-
-	if (s[i] == '+' || s[i] == '-')
-		i++;
-
-	if (s[i] == '\0')
+	if (s[0] == '-')
 		return (0);
+
+	i = 0;
+	if (s[0] == '+')
+		i = 1;
 
 	for (; s[i]; i++)
 	{
@@ -28,106 +59,59 @@ static int is_number(char *s)
 	return (1);
 }
 
-/**
- * to_long - convert numeric string to long (no locale)
- * @s: string (assumed valid by is_number)
- *
- * Return: long value
- */
-static long to_long(char *s)
+static unsigned long to_ulong(char *s)
 {
-	long sign = 1;
-	long n = 0;
-	size_t i = 0;
+	unsigned long n;
+	size_t i;
 
-	if (s[i] == '+' || s[i] == '-')
-	{
-		if (s[i] == '-')
-			sign = -1;
-		i++;
-	}
+	n = 0;
+	i = 0;
+	if (s[0] == '+')
+		i = 1;
 
 	for (; s[i]; i++)
-	{
-		/* basic overflow-safe-ish accumulation */
-		if (n > (LONG_MAX - (s[i] - '0')) / 10)
-			return (LONG_MAX * sign);
 		n = n * 10 + (s[i] - '0');
-	}
 
-	return (n * sign);
+	return (n);
 }
 
-/**
- * print_exit_illegal - print: exit: Illegal number: X
- * @arg: the illegal argument
- */
-static void print_exit_illegal(char *arg)
+static void print_illegal_exit(char *argv0, unsigned long ln, char *arg)
 {
-	char *p1 = "exit: Illegal number: ";
-	char *p2 = "\n";
+	char *p1 = ": ";
+	char *p2 = ": exit: Illegal number: ";
+	char nl = '\n';
 
-	write(STDERR_FILENO, p1, _strlen(p1));
-	if (arg)
-		write(STDERR_FILENO, arg, _strlen(arg));
-	write(STDERR_FILENO, p2, 1);
-}
+	if (!argv0)
+		argv0 = "./hsh";
 
-/**
- * print_exit_too_many - print: exit: too many arguments
- */
-static void print_exit_too_many(void)
-{
-	char *msg = "exit: too many arguments\n";
+	write(STDERR_FILENO, argv0, _strlen(argv0));
+	write(STDERR_FILENO, p1, 2);
 
-	write(STDERR_FILENO, msg, _strlen(msg));
-}
-
-/**
- * handle_builtins - handle built-in commands
- * @tokens: tokenized input
- * @status: pointer to last status
- *
- * Return: 1 if should exit shell, 0 otherwise
- */
-int handle_builtins(char **tokens, int *status)
-{
-	long n;
-
-	if (!tokens || !tokens[0])
-		return (0);
-
-	if (_strcmp(tokens[0], "exit") == 0)
+	/* ln printing (minimal): */
 	{
-		/* case: exit (no arg) */
-		if (!tokens[1])
-			return (1);
+		char buf[32];
+		int idx = 0;
+		unsigned long x = ln;
 
-		/* case: exit with too many args => don't exit */
-		if (tokens[2])
+		if (x == 0)
+			buf[idx++] = '1';
+		else
 		{
-			print_exit_too_many();
-			if (status)
-				*status = 2;
-			return (0);
-		}
+			char tmp[32];
+			int t = 0;
 
-		/* case: exit with illegal number => exit with 2 */
-		if (!is_number(tokens[1]))
-		{
-			print_exit_illegal(tokens[1]);
-			if (status)
-				*status = 2;
-			return (1);
+			while (x > 0)
+			{
+				tmp[t++] = (x % 10) + '0';
+				x /= 10;
+			}
+			while (t--)
+				buf[idx++] = tmp[t];
 		}
-
-		/* valid number: exit with N % 256 */
-		n = to_long(tokens[1]);
-		if (status)
-			*status = (unsigned char)n;
-		return (1);
+		write(STDERR_FILENO, buf, idx);
 	}
 
-	/* باقي الـ builtins عندك (env, cd, ...) */
-	return (0);
+	write(STDERR_FILENO, p2, _strlen(p2));
+	write(STDERR_FILENO, arg, _strlen(arg));
+	write(STDERR_FILENO, &nl, 1);
 }

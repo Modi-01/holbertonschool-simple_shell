@@ -11,7 +11,7 @@ static char *_getenv(char *name);
 char *resolve_path(char *cmd)
 {
 	char *path, *copy, *dir, *full;
-	size_t len, i, start;
+	size_t i, start, full_len;
 
 	if (!cmd || _strchr(cmd, '/'))
 		return (NULL);
@@ -23,25 +23,21 @@ char *resolve_path(char *cmd)
 	copy = malloc(_strlen(path) + 1);
 	if (!copy)
 		return (NULL);
-
 	_strcpy(copy, path);
 
 	start = 0;
-	i = 0;
-
-	while (1)
+	for (i = 0; ; i++)
 	{
 		if (copy[i] == ':' || copy[i] == '\0')
 		{
 			copy[i] = '\0';
 			dir = &copy[start];
 
-			/* empty entry means current directory */
 			if (dir[0] == '\0')
 				dir = ".";
 
-			len = _strlen(dir) + 1 + _strlen(cmd) + 1;
-			full = malloc(len);
+			full_len = _strlen(dir) + 1 + _strlen(cmd) + 1;
+			full = malloc(full_len);
 			if (!full)
 			{
 				free(copy);
@@ -58,10 +54,9 @@ char *resolve_path(char *cmd)
 				free(copy);
 				return (full);
 			}
-
 			free(full);
 
-			if (path[i] == '\0')
+			if (path[start + (i - start)] == '\0')
 				break;
 
 			start = i + 1;
@@ -69,8 +64,6 @@ char *resolve_path(char *cmd)
 
 		if (path[i] == '\0')
 			break;
-
-		i++;
 	}
 
 	free(copy);
@@ -85,24 +78,16 @@ char *resolve_path(char *cmd)
  */
 static char *_getenv(char *name)
 {
-	size_t i, j, len;
+	size_t i, len;
 
 	if (!name)
 		return (NULL);
 
 	len = _strlen(name);
-
 	for (i = 0; environ[i]; i++)
 	{
-		for (j = 0; j < len; j++)
-		{
-			if (environ[i][j] != name[j])
-				break;
-		}
-
-		if (j == len && environ[i][len] == '=')
+		if (_strncmp(environ[i], name, len) == 0 && environ[i][len] == '=')
 			return (environ[i] + len + 1);
 	}
-
 	return (NULL);
 }
