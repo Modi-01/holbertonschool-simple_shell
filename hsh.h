@@ -43,4 +43,19 @@ char *_strcpy(char *dest, const char *src);
 char *_strchr(const char *s, int c);
 char *_strcat(char *dest, const char *src);
 
+/* env builtins */
+int builtin_setenv(char **tokens, int *status);
+int builtin_unsetenv(char **tokens, int *status);
+
+/* env core */
+int shell_setenv(const char *name, const char *value);
+int shell_unsetenv(const char *name);
+
+/* cleanup */
+void cleanup_env(void);
+
+/* globals for error formatting (if you used them سابقًا) */
+extern char *g_argv0;
+extern unsigned long g_ln;
+
 #endif /* HSH_H */

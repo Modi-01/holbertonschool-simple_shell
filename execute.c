@@ -1,4 +1,5 @@
 #include "hsh.h"
+#include <stdio.h>
 
 /**
  * print_error - print error like /bin/sh
