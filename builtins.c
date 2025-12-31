@@ -1,13 +1,19 @@
 #include "hsh.h"
 
-static char **g_env_orig = NULL;
-static size_t g_env_len = 0;
-static int g_env_owned = 0;
+typedef struct env_alloc_s
+{
+	void *ptr;
+	int type; /* 0 = string, 1 = array */
+	struct env_alloc_s *next;
+} env_alloc_t;
+
+static env_alloc_t *g_env_allocs = NULL;
 
 static int is_unsigned_number(const char *s);
 static unsigned long to_ulong(const char *s);
-static int builtin_setenv(char **tokens);
-static int builtin_unsetenv(char **tokens);
+
+int builtin_setenv(char **tokens, int *status);
+int builtin_unsetenv(char **tokens, int *status);
 
 /**
  * handle_builtins - handle built-in commands
@@ -18,13 +24,15 @@ static int builtin_unsetenv(char **tokens);
  */
 int handle_builtins(char **tokens, int *status)
 {
-	size_t i = 0;
+	unsigned long code, mod;
 
 	if (!tokens || !tokens[0])
 		return (0);
 
 	if (_strcmp(tokens[0], "env") == 0)
 	{
+		size_t i = 0;
+
 		while (environ && environ[i])
 		{
 			write(STDOUT_FILENO, environ[i], _strlen(environ[i]));
@@ -35,20 +43,31 @@ int handle_builtins(char **tokens, int *status)
 	}
 
 	if (_strcmp(tokens[0], "setenv") == 0)
-		return (builtin_setenv(tokens));
+		return (builtin_setenv(tokens, status));
 
 	if (_strcmp(tokens[0], "unsetenv") == 0)
-		return (builtin_unsetenv(tokens));
+		return (builtin_unsetenv(tokens, status));
 
 	if (_strcmp(tokens[0], "exit") == 0)
 	{
-		unsigned long code, mod;
+		env_alloc_t *node = g_env_allocs, *tmp;
 
-		/* exit بدون باراميتر */
+		/* exit without parameter */
 		if (!tokens[1])
+		{
+			while (node)
+			{
+				tmp = node->next;
+				if (node->ptr)
+					free(node->ptr);
+				free(node);
+				node = tmp;
+			}
+			g_env_allocs = NULL;
 			return (1);
+		}
 
-		/* رفض السالب أو أي نص غير رقم */
+		/* reject negative or non-digit */
 		if (tokens[1][0] == '-' || !is_unsigned_number(tokens[1]))
 		{
 			fprintf(stderr, "%s: %lu: exit: Illegal number: %s\n",
@@ -61,21 +80,15 @@ int handle_builtins(char **tokens, int *status)
 		mod = code % 256;
 		*status = (int)mod;
 
-		/* قبل الخروج: حرّر نسخة البيئة إذا صرنا نملكها */
-		if (g_env_owned)
+		while (node)
 		{
-			i = 0;
-			while (environ && environ[i])
-			{
-				free(environ[i]);
-				i++;
-			}
-			free(environ);
-			environ = g_env_orig;
-			g_env_orig = NULL;
-			g_env_len = 0;
-			g_env_owned = 0;
+			tmp = node->next;
+			if (node->ptr)
+				free(node->ptr);
+			free(node);
+			node = tmp;
 		}
+		g_env_allocs = NULL;
 
 		return (1);
 	}
@@ -84,190 +97,255 @@ int handle_builtins(char **tokens, int *status)
 }
 
 /**
- * builtin_setenv - implement setenv builtin
- * @tokens: argv (setenv VARIABLE VALUE)
+ * builtin_setenv - set or modify environment variable
+ * @tokens: argv array (tokens[1]=VAR, tokens[2]=VALUE)
+ * @status: pointer to last status (set to 1 on failure)
  *
- * Return: 0 to continue shell (never exits)
+ * Return: 0 (shell continues)
  */
-static int builtin_setenv(char **tokens)
+int builtin_setenv(char **tokens, int *status)
 {
-	size_t i = 0, name_len;
-	char *name, *value, *entry;
-	char **newenv;
+	size_t i = 0, count = 0, var_len, val_len, k;
+	char *var, *val, *newstr;
+	char **newenv, **oldenv;
+	env_alloc_t *node;
 
-	if (!tokens[1] || !tokens[2] || tokens[3])
+	if (!tokens || !tokens[1] || !tokens[2])
 	{
 		fprintf(stderr, "setenv: usage: setenv VARIABLE VALUE\n");
+		if (status)
+			*status = 1;
 		return (0);
 	}
 
-	name = tokens[1];
-	value = tokens[2];
+	var = tokens[1];
+	val = tokens[2];
 
-	if (name[0] == '\0' || _strchr(name, '=') != NULL)
+	var_len = _strlen(var);
+	val_len = _strlen(val);
+
+	if (var_len == 0)
 	{
 		fprintf(stderr, "setenv: invalid variable name\n");
+		if (status)
+			*status = 1;
 		return (0);
 	}
 
-	/* أول تعديل للبيئة: انسخ environ وصرنا نملكها */
-	if (!g_env_owned)
+	for (k = 0; k < var_len; k++)
 	{
-		g_env_orig = environ;
-		while (environ && environ[g_env_len])
-			g_env_len++;
-
-		newenv = malloc(sizeof(char *) * (g_env_len + 1));
-		if (!newenv)
+		if (var[k] == '=')
 		{
-			fprintf(stderr, "setenv: malloc failed\n");
+			fprintf(stderr, "setenv: invalid variable name\n");
+			if (status)
+				*status = 1;
 			return (0);
 		}
-
-		for (i = 0; i < g_env_len; i++)
-		{
-			newenv[i] = malloc(_strlen(environ[i]) + 1);
-			if (!newenv[i])
-			{
-				while (i > 0)
-					free(newenv[--i]);
-				free(newenv);
-				fprintf(stderr, "setenv: malloc failed\n");
-				return (0);
-			}
-			_strcpy(newenv[i], environ[i]);
-		}
-		newenv[g_env_len] = NULL;
-		environ = newenv;
-		g_env_owned = 1;
 	}
 
-	name_len = _strlen(name);
-
-	/* كوّن "NAME=VALUE" */
-	entry = malloc(name_len + 1 + _strlen(value) + 1);
-	if (!entry)
+	newstr = malloc(var_len + 1 + val_len + 1);
+	if (!newstr)
 	{
 		fprintf(stderr, "setenv: malloc failed\n");
+		if (status)
+			*status = 1;
 		return (0);
 	}
-	_strcpy(entry, name);
-	_strcat(entry, "=");
-	_strcat(entry, value);
 
-	/* إذا موجود: استبدل */
+	for (k = 0; k < var_len; k++)
+		newstr[k] = var[k];
+	newstr[var_len] = '=';
+	for (k = 0; k < val_len; k++)
+		newstr[var_len + 1 + k] = val[k];
+	newstr[var_len + 1 + val_len] = '\0';
+
+	node = malloc(sizeof(*node));
+	if (!node)
+	{
+		free(newstr);
+		fprintf(stderr, "setenv: malloc failed\n");
+		if (status)
+			*status = 1;
+		return (0);
+	}
+	node->ptr = newstr;
+	node->type = 0;
+	node->next = g_env_allocs;
+	g_env_allocs = node;
+
+	while (environ && environ[count])
+		count++;
+
+	/* if exists, replace */
 	for (i = 0; environ && environ[i]; i++)
 	{
-		if (_strncmp(environ[i], name, name_len) == 0 &&
-		    environ[i][name_len] == '=')
+		if (_strncmp(environ[i], var, var_len) == 0 &&
+		    environ[i][var_len] == '=')
 		{
-			free(environ[i]);
-			environ[i] = entry;
+			/* free old string only if we own it */
+			node = g_env_allocs;
+			while (node)
+			{
+				if (node->type == 0 && node->ptr == environ[i])
+				{
+					free(node->ptr);
+					node->ptr = NULL;
+					break;
+				}
+				node = node->next;
+			}
+			environ[i] = newstr;
 			return (0);
 		}
 	}
 
-	/* غير موجود: كبّر المصفوفة (بدون realloc) */
-	newenv = malloc(sizeof(char *) * (g_env_len + 2));
+	/* not found: grow environ */
+	newenv = malloc(sizeof(char *) * (count + 2));
 	if (!newenv)
 	{
-		free(entry);
 		fprintf(stderr, "setenv: malloc failed\n");
+		if (status)
+			*status = 1;
 		return (0);
 	}
 
-	for (i = 0; i < g_env_len; i++)
+	for (i = 0; i < count; i++)
 		newenv[i] = environ[i];
 
-	newenv[g_env_len] = entry;
-	newenv[g_env_len + 1] = NULL;
+	newenv[count] = newstr;
+	newenv[count + 1] = NULL;
 
-	free(environ);
+	oldenv = environ;
 	environ = newenv;
-	g_env_len++;
+
+	/* track new array */
+	node = malloc(sizeof(*node));
+	if (!node)
+	{
+		fprintf(stderr, "setenv: malloc failed\n");
+		if (status)
+			*status = 1;
+		return (0);
+	}
+	node->ptr = newenv;
+	node->type = 1;
+	node->next = g_env_allocs;
+	g_env_allocs = node;
+
+	/* free old array only if we own it */
+	node = g_env_allocs;
+	while (node)
+	{
+		if (node->type == 1 && node->ptr == oldenv)
+		{
+			free(node->ptr);
+			node->ptr = NULL;
+			break;
+		}
+		node = node->next;
+	}
 
 	return (0);
 }
 
 /**
- * builtin_unsetenv - implement unsetenv builtin
- * @tokens: argv (unsetenv VARIABLE)
+ * builtin_unsetenv - remove environment variable
+ * @tokens: argv array (tokens[1]=VAR)
+ * @status: pointer to last status (set to 1 on failure)
  *
- * Return: 0 to continue shell (never exits)
+ * Return: 0 (shell continues)
  */
-static int builtin_unsetenv(char **tokens)
+int builtin_unsetenv(char **tokens, int *status)
 {
-	size_t i = 0, name_len;
-	char *name;
+	size_t i = 0, j = 0, count = 0, var_len;
+	char *var;
+	char **newenv, **oldenv;
+	env_alloc_t *node;
 
-	if (!tokens[1] || tokens[2])
+	if (!tokens || !tokens[1])
 	{
 		fprintf(stderr, "unsetenv: usage: unsetenv VARIABLE\n");
+		if (status)
+			*status = 1;
 		return (0);
 	}
 
-	name = tokens[1];
-	if (name[0] == '\0' || _strchr(name, '=') != NULL)
+	var = tokens[1];
+	var_len = _strlen(var);
+
+	if (var_len == 0)
 	{
 		fprintf(stderr, "unsetenv: invalid variable name\n");
+		if (status)
+			*status = 1;
 		return (0);
 	}
 
-	/* أول تعديل للبيئة: انسخ environ وصرنا نملكها */
-	if (!g_env_owned)
+	while (environ && environ[count])
+		count++;
+
+	newenv = malloc(sizeof(char *) * (count + 1));
+	if (!newenv)
 	{
-		char **newenv;
-
-		g_env_orig = environ;
-		while (environ && environ[g_env_len])
-			g_env_len++;
-
-		newenv = malloc(sizeof(char *) * (g_env_len + 1));
-		if (!newenv)
-		{
-			fprintf(stderr, "unsetenv: malloc failed\n");
-			return (0);
-		}
-
-		for (i = 0; i < g_env_len; i++)
-		{
-			newenv[i] = malloc(_strlen(environ[i]) + 1);
-			if (!newenv[i])
-			{
-				while (i > 0)
-					free(newenv[--i]);
-				free(newenv);
-				fprintf(stderr, "unsetenv: malloc failed\n");
-				return (0);
-			}
-			_strcpy(newenv[i], environ[i]);
-		}
-		newenv[g_env_len] = NULL;
-		environ = newenv;
-		g_env_owned = 1;
+		fprintf(stderr, "unsetenv: malloc failed\n");
+		if (status)
+			*status = 1;
+		return (0);
 	}
-
-	name_len = _strlen(name);
 
 	for (i = 0; environ && environ[i]; i++)
 	{
-		if (_strncmp(environ[i], name, name_len) == 0 &&
-		    environ[i][name_len] == '=')
+		if (_strncmp(environ[i], var, var_len) == 0 &&
+		    environ[i][var_len] == '=')
 		{
-			size_t j;
-
-			free(environ[i]);
-			for (j = i; environ[j]; j++)
-				environ[j] = environ[j + 1];
-
-			if (g_env_len > 0)
-				g_env_len--;
-
-			return (0);
+			/* free removed string only if we own it */
+			node = g_env_allocs;
+			while (node)
+			{
+				if (node->type == 0 && node->ptr == environ[i])
+				{
+					free(node->ptr);
+					node->ptr = NULL;
+					break;
+				}
+				node = node->next;
+			}
+			continue;
 		}
+		newenv[j++] = environ[i];
+	}
+	newenv[j] = NULL;
+
+	oldenv = environ;
+	environ = newenv;
+
+	/* track new array */
+	node = malloc(sizeof(*node));
+	if (!node)
+	{
+		fprintf(stderr, "unsetenv: malloc failed\n");
+		if (status)
+			*status = 1;
+		return (0);
+	}
+	node->ptr = newenv;
+	node->type = 1;
+	node->next = g_env_allocs;
+	g_env_allocs = node;
+
+	/* free old array only if we own it */
+	node = g_env_allocs;
+	while (node)
+	{
+		if (node->type == 1 && node->ptr == oldenv)
+		{
+			free(node->ptr);
+			node->ptr = NULL;
+			break;
+		}
+		node = node->next;
 	}
 
-	/* إذا المتغير غير موجود: اعتبرها نجاح بدون طباعة */
 	return (0);
 }
 
@@ -275,7 +353,7 @@ static int builtin_unsetenv(char **tokens)
  * is_unsigned_number - check if string is digits only
  * @s: string
  *
- * Return: 1 if valid, 0 otherwise
+ * Return: 1 if digits only, 0 otherwise
  */
 static int is_unsigned_number(const char *s)
 {
@@ -290,7 +368,6 @@ static int is_unsigned_number(const char *s)
 			return (0);
 		i++;
 	}
-
 	return (1);
 }
 
@@ -298,7 +375,7 @@ static int is_unsigned_number(const char *s)
  * to_ulong - convert digits string to unsigned long
  * @s: string
  *
- * Return: converted value
+ * Return: number
  */
 static unsigned long to_ulong(const char *s)
 {
@@ -310,6 +387,5 @@ static unsigned long to_ulong(const char *s)
 		n = n * 10 + (unsigned long)(s[i] - '0');
 		i++;
 	}
-
 	return (n);
 }
