@@ -5,50 +5,40 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <string.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <signal.h>
-
-#define READ_BUF_SIZE 1024
+#include <stddef.h>
 
 extern char **environ;
 
-/**
- * struct shell_ctx - execution context
- * @av0: program name (argv[0])
- * @line_num: current command line number
- * @interactive: 1 if interactive, 0 otherwise
- * @should_exit: 1 if shell must exit, 0 otherwise
- * @exit_status: status code to exit with
- * @env: owned copy of environment (NULL if not initialized)
- */
-typedef struct shell_ctx
-{
-	char *av0;
-	unsigned long line_num;
-	int interactive;
-	int should_exit;
-	int exit_status;
-	char **env;
-} shell_ctx_t;
+/* Globals used by some builtins/errors */
+extern char *g_argv0;
+extern unsigned long g_ln;
 
-void shell_loop(shell_ctx_t *ctx);
+/* ===== String helpers (your custom functions) ===== */
+size_t _strlen(const char *s);
+char *_strcpy(char *dest, const char *src);
+int _strncmp(const char *s1, const char *s2, size_t n);
+char *_strchr(const char *s, int c);
 
-char **split_args(char *line);
-void free_args(char **argv);
-int execute_argv(shell_ctx_t *ctx, char **argv);
+/* ===== Errors ===== */
+void print_error(const char *argv0, unsigned long ln,
+		 const char *cmd, const char *msg);
 
-int handle_builtins(shell_ctx_t *ctx, char **argv);
+/* ===== PATH / execution ===== */
+char *resolve_path(char *cmd);
 
-ssize_t my_getline(char **lineptr, size_t *n, int fd);
+/* ===== Environment core ===== */
+int shell_setenv(char *name, char *value);
+int shell_unsetenv(char *name);
 
+/* ===== Env builtins ===== */
+int builtin_setenv(char **tokens);
+int builtin_unsetenv(char **tokens);
+void print_env_stdout(void);
+
+/* ===== Ctrl+C ===== */
 void sigint_handler(int sig);
-
-/* Environment management */
-int env_init(shell_ctx_t *ctx);
-void env_free(shell_ctx_t *ctx);
-int env_set(shell_ctx_t *ctx, const char *name, const char *value);
-int env_unset(shell_ctx_t *ctx, const char *name);
 
 #endif /* HSH_H */
