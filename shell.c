@@ -1,14 +1,16 @@
 #include "hsh.h"
 
+char *g_argv0 = NULL;
+unsigned long g_ln = 0;
+
 static int interactive_mode(void);
 static void print_prompt(void);
 static void strip_newline(char *s);
 static int is_blank(char *s);
 
 /**
- * run_shell - simple shell loop (PATH + args + exit/env) using custom _getline
+ * run_shell - simple shell (PATH + args + exit/env)
  * @argv0: program name
- *
  * Return: last status
  */
 int run_shell(char *argv0)
@@ -20,6 +22,8 @@ int run_shell(char *argv0)
 	int status = 0;
 	int interactive = interactive_mode();
 	char **tokens = NULL;
+
+	g_argv0 = argv0;
 
 	while (1)
 	{
@@ -35,6 +39,8 @@ int run_shell(char *argv0)
 		}
 
 		ln++;
+		g_ln = ln;
+
 		strip_newline(line);
 
 		if (is_blank(line))
@@ -47,8 +53,7 @@ int run_shell(char *argv0)
 			continue;
 		}
 
-		/* builtins: return 1 means "shell should terminate" */
-		if (handle_builtins(tokens, argv0, ln, &status))
+		if (handle_builtins(tokens, &status))
 		{
 			free_tokens(tokens);
 			break;
@@ -62,28 +67,16 @@ int run_shell(char *argv0)
 	return (status);
 }
 
-/**
- * interactive_mode - check if stdin is a terminal
- *
- * Return: 1 if interactive, 0 otherwise
- */
 static int interactive_mode(void)
 {
 	return (isatty(STDIN_FILENO));
 }
 
-/**
- * print_prompt - display prompt
- */
 static void print_prompt(void)
 {
 	write(STDOUT_FILENO, "($) ", 4);
 }
 
-/**
- * strip_newline - remove trailing newline
- * @s: string
- */
 static void strip_newline(char *s)
 {
 	size_t i = 0;
@@ -98,12 +91,6 @@ static void strip_newline(char *s)
 		s[i - 1] = '\0';
 }
 
-/**
- * is_blank - check if line contains only spaces/tabs or is empty
- * @s: string
- *
- * Return: 1 if blank, 0 otherwise
- */
 static int is_blank(char *s)
 {
 	size_t i = 0;

@@ -1,13 +1,18 @@
 #ifndef HSH_H
 #define HSH_H
 
-#include <unistd.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <sys/wait.h>
 #include <errno.h>
-#include <stddef.h>
+#include <string.h>
 
 extern char **environ;
+
+/* globals used for exact error formatting */
+extern char *g_argv0;
+extern unsigned long g_ln;
 
 /* shell.c */
 int run_shell(char *argv0);
@@ -24,7 +29,7 @@ int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status);
 void print_error(char *argv0, unsigned long ln, char *cmd, char *msg);
 
 /* builtins.c */
-int handle_builtins(char **tokens, char *argv0, unsigned long ln, int *status);
+int handle_builtins(char **tokens, int *status);
 
 /* getline.c */
 ssize_t _getline(char **lineptr, size_t *n, int fd);
@@ -34,7 +39,7 @@ size_t _strlen(const char *s);
 int _strcmp(const char *s1, const char *s2);
 int _strncmp(const char *s1, const char *s2, size_t n);
 char *_strcpy(char *dest, const char *src);
-char *_strcat(char *dest, const char *src);
 char *_strchr(const char *s, int c);
+char *_strcat(char *dest, const char *src);
 
 #endif /* HSH_H */

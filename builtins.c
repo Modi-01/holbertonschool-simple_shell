@@ -1,58 +1,64 @@
 #include "hsh.h"
 
-static int is_number(const char *s);
+static int is_unsigned_number(const char *s);
 static unsigned long to_ulong(const char *s);
 
 /**
- * handle_builtins - handle shell builtins
- * @tokens: argv-like tokens
- * @argv0: program name
- * @ln: line number
+ * handle_builtins - handle built-in commands
+ * @tokens: argv array
  * @status: pointer to last status
  *
- * Return: 1 if shell should terminate, 0 otherwise
+ * Return: 1 if shell should exit, 0 otherwise
  */
-int handle_builtins(char **tokens, char *argv0, unsigned long ln, int *status)
+int handle_builtins(char **tokens, int *status)
 {
-	unsigned long code;
+	unsigned long code, mod;
 
 	if (!tokens || !tokens[0])
 		return (0);
 
+	if (_strcmp(tokens[0], "env") == 0)
+	{
+		size_t i = 0;
+
+		while (environ && environ[i])
+		{
+			write(STDOUT_FILENO, environ[i], _strlen(environ[i]));
+			write(STDOUT_FILENO, "\n", 1);
+			i++;
+		}
+		return (0);
+	}
+
 	if (_strcmp(tokens[0], "exit") == 0)
 	{
+		/* exit بدون باراميتر */
 		if (!tokens[1])
-			exit(*status);
+			return (1);
 
-		/* negative or non-numeric => Illegal number, exit(2) */
-		if (tokens[1][0] == '-' || !is_number(tokens[1]))
+		/* شيل يرفض السالب أو أي نص */
+		if (tokens[1][0] == '-' || !is_unsigned_number(tokens[1]))
 		{
-			print_error(argv0, ln, "exit", "Illegal number: ");
-			write(STDERR_FILENO, tokens[1], _strlen(tokens[1]));
-			write(STDERR_FILENO, "\n", 1);
-			exit(2);
+			fprintf(stderr, "%s: %lu: exit: Illegal number: %s\n",
+				g_argv0 ? g_argv0 : "./hsh", g_ln, tokens[1]);
+			*status = 2;
+			return (1);
 		}
 
 		code = to_ulong(tokens[1]);
-		exit((int)(code % 256));
+		mod = code % 256;
+		*status = (int)mod;
+		return (1);
 	}
 
-	/* add other builtins here (env, cd, etc) */
 	return (0);
 }
 
-static int is_number(const char *s)
+static int is_unsigned_number(const char *s)
 {
-	size_t i;
+	size_t i = 0;
 
 	if (!s || s[0] == '\0')
-		return (0);
-
-	i = 0;
-	if (s[i] == '+')
-		i++;
-
-	if (s[i] == '\0')
 		return (0);
 
 	while (s[i])
@@ -66,16 +72,13 @@ static int is_number(const char *s)
 
 static unsigned long to_ulong(const char *s)
 {
-	unsigned long n;
+	unsigned long n = 0;
+	size_t i = 0;
 
-	n = 0;
-	while (*s == '+')
-		s++;
-
-	while (*s)
+	while (s && s[i])
 	{
-		n = n * 10 + (unsigned long)(*s - '0');
-		s++;
+		n = n * 10 + (unsigned long)(s[i] - '0');
+		i++;
 	}
 	return (n);
 }
