@@ -1,0 +1,230 @@
+. /This is a manual page for simple shell
+.TH hsh(1) "25-12-2025" "simple shell project" "User Commands"
+.SH NAME
+hsh \- a simple shell, command line interpreter
+.SH SYNOPSIS
+.B ./hsh 
+.RI [command] [argument]
+for interactive mode. 
+.br
+echo
+.RI "[command] [argument]"
+| 
+.B ./hsh
+for non-interactive mode.
+.SH DESCRIPTION
+.B hsh
+is a minimalist command line interpreter that mimics the most basic functionality of "sh". It reads commands from standard input (interactive or non-interactive), parses them, and executes programs.
+.PP
+When running in interactive mode, the shell displays a prompt and waits for user input. In non-interactive mode, it reads commands from stdin or from a file provided as an argument.
+
+.SH USAGE
+The shell can be used in three modes:
+.TP
+.B Interactive mode
+When stdin is a terminal, the shell prints a prompt and reads commands until EOF
+(Ctrl+D) or until the built-in command
+.B exit
+is called.
+.TP
+.B Non-interactive mode (stdin)
+Commands can be piped into the shell:
+.br
+echo "/bin/ls" | ./hsh
+.TP
+.B File input mode
+If a filename is provided:
+.br
+./hsh filename
+.br
+The shell reads one command per line from the file, does not print a prompt, and
+does not read from stdin.
+.SH EXAMPLES
+Run interactively:
+.br
+$ ./hsh
+.br
+$ ls -l
+.br
+$ exit
+
+Run from stdin:
+.br
+$ echo "/bin/ls" | ./hsh
+
+Run from file:
+.br
+$ ./hsh commands.txt
+
+Use operators:
+.br
+$ ls /var ; echo done
+.br
+$ ls /var && echo ok
+.br
+$ ls /notfound || echo failed
+
+Use variables:
+.br
+$ echo $$
+.br
+$ echo $?
+.br
+$ echo $PATH
+
+Use comments:
+.br
+$ echo $$ # trailing comment ignored
+.SH FEATURES
+.SS Command execution
+The shell executes commands with arguments. It resolves commands using the
+.B PATH
+environment variable and does not call
+.B fork
+when a command cannot be found.
+
+.SS Built-in commands
+.TP
+.B exit
+Exit the shell.
+
+.TP
+.B exit status
+Exit the shell with an integer status value.
+
+.TP
+.B env
+Print the current environment.
+
+.TP
+.B setenv VARIABLE VALUE
+Initialize or modify an environment variable.
+
+.TP
+.B unsetenv VARIABLE
+Remove an environment variable.
+
+.TP
+.B cd
+Change directory to
+.BR $HOME.
+
+.TP
+.B cd DIRECTORY
+Change directory to the specified directory.
+
+.TP
+.B cd -
+Change directory to the previous directory.
+.TP
+.B help
+Display help about built-ins.
+
+.TP
+.B help BUILTIN
+Display help about a specific built-in.
+
+.TP
+.B history
+Display the history list, one command per line, preceded with line numbers
+starting at 0. On exit, the history is written without line numbers to
+.B $HOME/.simple_shell_history
+and loaded when the shell starts (if present).
+
+.SS Operators
+The shell supports:
+.TP
+.B ;
+Command separator.
+.TP
+.B &&
+Logical AND operator.
+.TP
+.B ||
+Logical OR operator.
+
+.SS Variables expansion
+The shell supports variable replacement:
+.TP
+.B $?
+Expands to the exit status of the most recently executed command.
+.TP
+.B $$
+Expands to the PID of the current shell process.
+.TP
+.B $VARNAME
+Expands to the value of an environment variable.
+
+.SS Comments
+Text starting with
+.B #
+is treated as a comment and ignored.
+
+.SS Alias
+The shell supports
+.B alias
+built-in:
+.TP
+.B alias
+Print all aliases, one per line, as: name='value'
+.TP
+.B alias name [name2 ...]
+Print the specified aliases.
+
+.TP
+.B alias name='value'
+Define or replace an alias.
+
+
+.SH EXIT STATUS
+The shell returns 0 on normal exit, or the status provided to
+.B exit status
+if specified.
+Errors detected by the shell, such as syntax errors, cause the shell to return a non-zero exit status.
+.SH ERRORS
+The shell reports errors to standard error (stderr) and continues running
+unless otherwise noted.
+.TP
+.B Command not found
+If a command cannot be located (either as an absolute/relative path, or via
+PATH resolution), the shell prints an error and returns a non-zero status.
+.TP
+.B Execution failure
+If an executable is found but cannot be executed (e.g., permission denied or
+invalid format), the shell prints an error message and
+returns a non-zero status.
+.TP
+.B Built-in usage errors
+If a built-in command is used incorrectly (wrong number of arguments or invalid
+argument format), the shell prints an error message and returns a non-zero
+status (for example: invalid numeric status for
+.BR exit ).
+.TP
+.B cd errors
+If changing directory fails (e.g., directory does not exist or permission is
+denied), the shell prints an error message and does not change the current
+directory.
+.SH BUGS
+No bugs were detected.
+.SH SEE ALSO
+.br
+.BR sh (1)
+.br
+.BR bash (1)
+.br
+.BR execve (2)
+.br
+.BR fork (2)
+.br
+.BR wait (2)
+.br
+.BR signal (2)
+.br
+.BR chdir (2)
+.br
+.BR getcwd (3)
+.br
+.SH AUTHOR
+Moudhi Almutlaq <Moudhi.a.almutlaq@gmail.com>
+.br
+Adwa Almuraikhy <Iadwaalmuraikhy@gmail.com>
