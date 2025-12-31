@@ -26,11 +26,11 @@ int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status)
 	pid_t pid;
 	int wstatus;
 	char *path = NULL;
+	void (*old_handler)(int);
 
 	if (!tokens || !tokens[0])
 		return (0);
 
-	/* resolve command path */
 	if (_strchr(tokens[0], '/'))
 		path = tokens[0];
 	else
@@ -54,9 +54,11 @@ int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status)
 
 	if (pid == 0)
 	{
+		/* Child: Ctrl+C should terminate the command */
+		signal(SIGINT, SIG_DFL);
+
 		execve(path, tokens, environ);
 
-		/* execve failed */
 		if (errno == EACCES)
 			print_error(argv0, ln, tokens[0], "Permission denied");
 		else
@@ -68,7 +70,10 @@ int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status)
 		_exit((errno == EACCES) ? 126 : 127);
 	}
 
+	/* Parent: ignore SIGINT while waiting (avoid double prompt) */
+	old_handler = signal(SIGINT, SIG_IGN);
 	waitpid(pid, &wstatus, 0);
+	signal(SIGINT, old_handler);
 
 	if (path != tokens[0])
 		free(path);
@@ -80,3 +85,4 @@ int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status)
 
 	return (0);
 }
+

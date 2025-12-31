@@ -3,13 +3,15 @@
 char *g_argv0 = NULL;
 unsigned long g_ln = 0;
 
-static int interactive_mode(void);
+static volatile sig_atomic_t g_interactive = 0;
+
+static void sigint_handler(int sig);
 static void print_prompt(void);
 static void strip_newline(char *s);
 static int is_blank(char *s);
 
 /**
- * run_shell - simple shell (PATH + args + exit/env)
+ * run_shell - simple shell (PATH + args + exit/env + Ctrl+C)
  * @argv0: program name
  * Return: last status
  */
@@ -20,20 +22,31 @@ int run_shell(char *argv0)
 	ssize_t r;
 	unsigned long ln = 0;
 	int status = 0;
-	int interactive = interactive_mode();
 	char **tokens = NULL;
 
 	g_argv0 = argv0;
+	g_interactive = isatty(STDIN_FILENO);
+
+	/* Handle Ctrl+C */
+	signal(SIGINT, sigint_handler);
 
 	while (1)
 	{
-		if (interactive)
+		if (g_interactive)
 			print_prompt();
 
 		r = _getline(&line, &n, STDIN_FILENO);
+
+		/* Ctrl+C may interrupt read/getline */
+		if (r == -1 && errno == EINTR)
+		{
+			errno = 0;
+			continue;
+		}
+
 		if (r == -1)
 		{
-			if (interactive)
+			if (g_interactive)
 				write(STDOUT_FILENO, "\n", 1);
 			break;
 		}
@@ -67,9 +80,15 @@ int run_shell(char *argv0)
 	return (status);
 }
 
-static int interactive_mode(void)
+static void sigint_handler(int sig)
 {
-	return (isatty(STDIN_FILENO));
+	(void)sig;
+
+	/* Must not use printf here (not async-signal-safe) */
+	if (g_interactive)
+		write(STDOUT_FILENO, "\n($) ", 5);
+	else
+		write(STDOUT_FILENO, "\n", 1);
 }
 
 static void print_prompt(void)
