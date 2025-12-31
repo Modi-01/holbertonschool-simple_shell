@@ -1,45 +1,7 @@
 #include "hsh.h"
 
-/**
- * is_unsigned_number - checks if string is an unsigned integer
- * @s: string
- *
- * Return: 1 if valid unsigned number, 0 otherwise
- */
-static int is_unsigned_number(const char *s)
-{
-	size_t i = 0;
-
-	if (!s || s[0] == '\0')
-		return (0);
-
-	while (s[i])
-	{
-		if (s[i] < '0' || s[i] > '9')
-			return (0);
-		i++;
-	}
-	return (1);
-}
-
-/**
- * to_ulong - convert string of digits to unsigned long
- * @s: string
- *
- * Return: converted value
- */
-static unsigned long to_ulong(const char *s)
-{
-	unsigned long n = 0;
-	size_t i = 0;
-
-	while (s && s[i])
-	{
-		n = n * 10 + (unsigned long)(s[i] - '0');
-		i++;
-	}
-	return (n);
-}
+static int is_unsigned_number(const char *s);
+static unsigned long to_ulong(const char *s);
 
 /**
  * handle_builtins - handle built-in commands
@@ -65,7 +27,6 @@ int handle_builtins(char **tokens, int *status)
 			write(STDOUT_FILENO, "\n", 1);
 			i++;
 		}
-		*status = 0;
 		return (0);
 	}
 
@@ -77,11 +38,11 @@ int handle_builtins(char **tokens, int *status)
 
 	if (_strcmp(tokens[0], "exit") == 0)
 	{
-		/* exit without parameter -> exit with current status */
+		/* exit without parameter */
 		if (!tokens[1])
 			return (1);
 
-		/* reject negative or non-number */
+		/* refuse negative or non-numeric */
 		if (tokens[1][0] == '-' || !is_unsigned_number(tokens[1]))
 		{
 			fprintf(stderr, "%s: %lu: exit: Illegal number: %s\n",
@@ -97,4 +58,33 @@ int handle_builtins(char **tokens, int *status)
 	}
 
 	return (0);
+}
+
+static int is_unsigned_number(const char *s)
+{
+	size_t i = 0;
+
+	if (!s || s[0] == '\0')
+		return (0);
+
+	while (s[i])
+	{
+		if (s[i] < '0' || s[i] > '9')
+			return (0);
+		i++;
+	}
+	return (1);
+}
+
+static unsigned long to_ulong(const char *s)
+{
+	unsigned long n = 0;
+	size_t i = 0;
+
+	while (s && s[i])
+	{
+		n = n * 10 + (unsigned long)(s[i] - '0');
+		i++;
+	}
+	return (n);
 }

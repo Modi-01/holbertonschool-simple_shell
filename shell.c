@@ -77,6 +77,8 @@ int run_shell(char *argv0)
 	}
 
 	free(line);
+	env_cleanup();
+
 	return (status);
 }
 

@@ -54,8 +54,4 @@ int shell_unsetenv(const char *name);
 /* cleanup */
 void cleanup_env(void);
 
-/* globals for error formatting (if you used them سابقًا) */
-extern char *g_argv0;
-extern unsigned long g_ln;
-
 #endif /* HSH_H */
