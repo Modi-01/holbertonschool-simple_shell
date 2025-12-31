@@ -78,9 +78,10 @@ int run_shell(char *argv0)
 	}
 
 	/* IMPORTANT: correct function name (declared in hsh.h) */
-	cleanup_env();
+	
 
 	free(line);
+	cleanup_env();
 	return (status);
 }
 

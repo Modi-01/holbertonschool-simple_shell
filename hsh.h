@@ -35,7 +35,7 @@ int handle_builtins(char **tokens, int *status);
 /* getline.c */
 ssize_t _getline(char **lineptr, size_t *n, int fd);
 
-/* string helpers */
+/* string_utils.c */
 size_t _strlen(const char *s);
 int _strcmp(const char *s1, const char *s2);
 int _strncmp(const char *s1, const char *s2, size_t n);
@@ -43,15 +43,15 @@ char *_strcpy(char *dest, const char *src);
 char *_strchr(const char *s, int c);
 char *_strcat(char *dest, const char *src);
 
-/* env builtins */
+/* env_builtins.c */
 int builtin_setenv(char **tokens, int *status);
 int builtin_unsetenv(char **tokens, int *status);
 
-/* env core */
+/* env.c */
 int shell_setenv(const char *name, const char *value);
 int shell_unsetenv(const char *name);
 
-/* cleanup */
+/* cleanup.c */
 void cleanup_env(void);
 
 #endif /* HSH_H */

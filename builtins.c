@@ -1,90 +1,61 @@
 #include "hsh.h"
 
-static int is_unsigned_number(const char *s);
-static unsigned long to_ulong(const char *s);
-
 /**
- * handle_builtins - handle built-in commands
- * @tokens: argv array
- * @status: pointer to last status
+ * handle_builtins - handle shell builtins
+ * @tokens: tokenized input
+ * @status: pointer to last command status
  *
- * Return: 1 if shell should exit, 0 otherwise
+ * Return: 1 if should exit shell, 0 otherwise
  */
 int handle_builtins(char **tokens, int *status)
 {
-	unsigned long code, mod;
+	int i;
+	char *env_line;
 
 	if (!tokens || !tokens[0])
 		return (0);
 
+	/* env */
 	if (_strcmp(tokens[0], "env") == 0)
 	{
-		size_t i = 0;
-
+		i = 0;
 		while (environ && environ[i])
 		{
-			write(STDOUT_FILENO, environ[i], _strlen(environ[i]));
+			env_line = environ[i];
+			write(STDOUT_FILENO, env_line, _strlen(env_line));
 			write(STDOUT_FILENO, "\n", 1);
 			i++;
 		}
+		*status = 0;
 		return (0);
 	}
 
+	/* setenv / unsetenv (implemented ONLY in env_builtins.c) */
 	if (_strcmp(tokens[0], "setenv") == 0)
 		return (builtin_setenv(tokens, status));
 
 	if (_strcmp(tokens[0], "unsetenv") == 0)
 		return (builtin_unsetenv(tokens, status));
 
+	/* exit */
 	if (_strcmp(tokens[0], "exit") == 0)
 	{
-		/* exit without parameter */
 		if (!tokens[1])
 			return (1);
 
-		/* refuse negative or non-numeric */
-		if (tokens[1][0] == '-' || !is_unsigned_number(tokens[1]))
+		for (i = 0; tokens[1][i]; i++)
 		{
-			fprintf(stderr, "%s: %lu: exit: Illegal number: %s\n",
-				g_argv0 ? g_argv0 : "./hsh", g_ln, tokens[1]);
-			*status = 2;
-			return (1);
+			if (tokens[1][i] < '0' || tokens[1][i] > '9')
+			{
+				print_error(g_argv0, g_ln, "exit",
+					"Illegal number\n");
+				*status = 2;
+				return (0);
+			}
 		}
-
-		code = to_ulong(tokens[1]);
-		mod = code % 256;
-		*status = (int)mod;
+		*status = atoi(tokens[1]);
 		return (1);
 	}
 
 	return (0);
-}
-
-static int is_unsigned_number(const char *s)
-{
-	size_t i = 0;
-
-	if (!s || s[0] == '\0')
-		return (0);
-
-	while (s[i])
-	{
-		if (s[i] < '0' || s[i] > '9')
-			return (0);
-		i++;
-	}
-	return (1);
-}
-
-static unsigned long to_ulong(const char *s)
-{
-	unsigned long n = 0;
-	size_t i = 0;
-
-	while (s && s[i])
-	{
-		n = n * 10 + (unsigned long)(s[i] - '0');
-		i++;
-	}
-	return (n);
 }

@@ -1,25 +1,18 @@
 #include "hsh.h"
 
-extern int g_env_cloned;
-extern char **g_env_alloc;
+extern int g_env_is_ours;
 
-/**
- * cleanup_env - free cloned environment
- */
 void cleanup_env(void)
 {
-	size_t i = 0;
+	int i;
 
-	if (!g_env_cloned || !g_env_alloc)
+	if (!g_env_is_ours || !environ)
 		return;
 
-	while (g_env_alloc[i])
-	{
-		free(g_env_alloc[i]);
-		i++;
-	}
-	free(g_env_alloc);
+	for (i = 0; environ[i]; i++)
+		free(environ[i]);
 
-	g_env_alloc = NULL;
-	g_env_cloned = 0;
+	free(environ);
+	environ = NULL;
+	g_env_is_ours = 0;
 }

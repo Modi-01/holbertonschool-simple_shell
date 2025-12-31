@@ -1,125 +1,33 @@
 #include "hsh.h"
 
-/* exported so cleanup.c can free them */
-int g_env_cloned = 0;
-char **g_env_alloc = NULL;
+int g_env_is_ours = 0;
 
-static int env_name_ok(const char *name, int *len);
-static int env_find(const char *name, int len);
-static int env_clone(void);
-
-/**
- * shell_setenv - set or overwrite env var
- * @name: variable name
- * @value: variable value
- * Return: 0 on success, -1 on failure
- */
-int shell_setenv(const char *name, const char *value)
+static char *dup_str(const char *s)
 {
-	int len, idx;
-	size_t vlen, total, i, count;
-	char *entry;
+	size_t len;
+	char *p;
+
+	if (!s)
+		return (NULL);
+
+	len = _strlen(s);
+	p = malloc(len + 1);
+	if (!p)
+		return (NULL);
+
+	_strcpy(p, s);
+	return (p);
+}
+
+static int ensure_env_copy(void)
+{
+	int i, count;
 	char **newenv;
 
-	if (env_clone() == -1)
-		return (-1);
-
-	if (!env_name_ok(name, &len))
-		return (-1);
-
-	if (!value)
-		value = "";
-
-	idx = env_find(name, len);
-
-	vlen = _strlen(value);
-	total = (size_t)len + 1 + vlen + 1;
-
-	entry = malloc(total);
-	if (!entry)
-		return (-1);
-
-	for (i = 0; i < (size_t)len; i++)
-		entry[i] = name[i];
-	entry[i++] = '=';
-	for (count = 0; count < vlen; count++)
-		entry[i + count] = value[count];
-	entry[i + vlen] = '\0';
-
-	if (idx >= 0)
-	{
-		free(environ[idx]);
-		environ[idx] = entry;
+	if (g_env_is_ours)
 		return (0);
-	}
 
-	/* append (no realloc allowed) */
 	count = 0;
-	while (environ[count])
-		count++;
-
-	newenv = malloc(sizeof(char *) * (count + 2));
-	if (!newenv)
-	{
-		free(entry);
-		return (-1);
-	}
-
-	for (i = 0; i < count; i++)
-		newenv[i] = environ[i];
-
-	newenv[count] = entry;
-	newenv[count + 1] = NULL;
-
-	free(environ);
-	environ = newenv;
-	g_env_alloc = newenv;
-
-	return (0);
-}
-
-/**
- * shell_unsetenv - remove env var
- * @name: variable name
- * Return: 0 on success, -1 on failure
- */
-int shell_unsetenv(const char *name)
-{
-	int len, idx;
-	size_t i;
-
-	if (env_clone() == -1)
-		return (-1);
-
-	if (!env_name_ok(name, &len))
-		return (-1);
-
-	idx = env_find(name, len);
-	if (idx < 0)
-		return (0);
-
-	free(environ[idx]);
-
-	i = (size_t)idx;
-	while (environ[i + 1])
-	{
-		environ[i] = environ[i + 1];
-		i++;
-	}
-	environ[i] = NULL;
-
-	return (0);
-}
-
-static int env_clone(void)
-{
-	size_t count = 0, i, len;
-	char **newenv;
-	char *dup;
-
-	if (g_env_cloned)
-		return (0);
-
 	while (environ && environ[count])
 		count++;
 
@@ -129,53 +37,122 @@ static int env_clone(void)
 
 	for (i = 0; i < count; i++)
 	{
-		len = _strlen(environ[i]);
-		dup = malloc(len + 1);
-		if (!dup)
+		newenv[i] = dup_str(environ[i]);
+		if (!newenv[i])
 		{
 			while (i > 0)
 				free(newenv[--i]);
 			free(newenv);
 			return (-1);
 		}
-		_strcpy(dup, environ[i]);
-		newenv[i] = dup;
 	}
 	newenv[count] = NULL;
 
 	environ = newenv;
-	g_env_alloc = newenv;
-	g_env_cloned = 1;
-
+	g_env_is_ours = 1;
 	return (0);
 }
 
-static int env_find(const char *name, int len)
+static int find_env_index(const char *name)
 {
 	int i;
+	size_t nlen;
 
-	for (i = 0; environ && environ[i]; i++)
+	if (!name || !environ)
+		return (-1);
+
+	nlen = _strlen(name);
+	for (i = 0; environ[i]; i++)
 	{
-		if (_strncmp(environ[i], name, (size_t)len) == 0 &&
-		    environ[i][len] == '=')
+		if (_strncmp(environ[i], name, nlen) == 0 && environ[i][nlen] == '=')
 			return (i);
 	}
 	return (-1);
 }
 
-static int env_name_ok(const char *name, int *len)
+static char *build_kv(const char *name, const char *value)
 {
-	int i = 0;
+	size_t nlen, vlen;
+	char *kv;
 
-	if (!name || name[0] == '\0')
+	nlen = _strlen(name);
+	vlen = _strlen(value);
+
+	kv = malloc(nlen + vlen + 2);
+	if (!kv)
+		return (NULL);
+
+	_strcpy(kv, name);
+	kv[nlen] = '=';
+	_strcpy(kv + nlen + 1, value);
+	return (kv);
+}
+
+int shell_setenv(const char *name, const char *value)
+{
+	int idx, i, count;
+	char *kv;
+	char **newenv;
+
+	if (!name || !value || name[0] == '\0' || _strchr(name, '='))
+		return (-1);
+
+	if (ensure_env_copy() == -1)
+		return (-1);
+
+	kv = build_kv(name, value);
+	if (!kv)
+		return (-1);
+
+	idx = find_env_index(name);
+	if (idx >= 0)
+	{
+		free(environ[idx]);
+		environ[idx] = kv;
+		return (0);
+	}
+
+	count = 0;
+	while (environ[count])
+		count++;
+
+	newenv = malloc(sizeof(char *) * (count + 2));
+	if (!newenv)
+	{
+		free(kv);
+		return (-1);
+	}
+
+	for (i = 0; i < count; i++)
+		newenv[i] = environ[i];
+
+	newenv[count] = kv;
+	newenv[count + 1] = NULL;
+
+	free(environ);
+	environ = newenv;
+
+	return (0);
+}
+
+int shell_unsetenv(const char *name)
+{
+	int idx, i;
+
+	if (!name || name[0] == '\0' || _strchr(name, '='))
+		return (-1);
+
+	if (ensure_env_copy() == -1)
+		return (-1);
+
+	idx = find_env_index(name);
+	if (idx < 0)
 		return (0);
 
-	while (name[i])
-	{
-		if (name[i] == '=')
-			return (0);
-		i++;
-	}
-	*len = i;
-	return (1);
+	free(environ[idx]);
+
+	for (i = idx; environ[i]; i++)
+		environ[i] = environ[i + 1];
+
+	return (0);
 }
