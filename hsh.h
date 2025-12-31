@@ -1,12 +1,11 @@
 #ifndef HSH_H
 #define HSH_H
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <sys/wait.h>
 #include <errno.h>
-#include <string.h>
+#include <stddef.h>
 
 extern char **environ;
 
@@ -25,7 +24,7 @@ int execute_tokens(char **tokens, char *argv0, unsigned long ln, int *status);
 void print_error(char *argv0, unsigned long ln, char *cmd, char *msg);
 
 /* builtins.c */
-int handle_builtins(char **tokens, int *status);
+int handle_builtins(char **tokens, char *argv0, unsigned long ln, int *status);
 
 /* getline.c */
 ssize_t _getline(char **lineptr, size_t *n, int fd);
@@ -33,11 +32,9 @@ ssize_t _getline(char **lineptr, size_t *n, int fd);
 /* string helpers */
 size_t _strlen(const char *s);
 int _strcmp(const char *s1, const char *s2);
-char *_strcpy(char *dest, const char *src);
-char *_strchr(const char *s, int c);
-
-/* ADD THESE */
-char *_strcat(char *dest, const char *src);
 int _strncmp(const char *s1, const char *s2, size_t n);
+char *_strcpy(char *dest, const char *src);
+char *_strcat(char *dest, const char *src);
+char *_strchr(const char *s, int c);
 
 #endif /* HSH_H */

@@ -6,7 +6,7 @@ static void strip_newline(char *s);
 static int is_blank(char *s);
 
 /**
- * run_shell - simple shell 1.0 (PATH + args + exit/env)
+ * run_shell - simple shell loop (PATH + args + exit/env) using custom _getline
  * @argv0: program name
  *
  * Return: last status
@@ -47,7 +47,8 @@ int run_shell(char *argv0)
 			continue;
 		}
 
-		if (handle_builtins(tokens, &status))
+		/* builtins: return 1 means "shell should terminate" */
+		if (handle_builtins(tokens, argv0, ln, &status))
 		{
 			free_tokens(tokens);
 			break;
@@ -63,6 +64,7 @@ int run_shell(char *argv0)
 
 /**
  * interactive_mode - check if stdin is a terminal
+ *
  * Return: 1 if interactive, 0 otherwise
  */
 static int interactive_mode(void)
@@ -115,6 +117,5 @@ static int is_blank(char *s)
 			return (0);
 		i++;
 	}
-
 	return (1);
 }

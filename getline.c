@@ -2,12 +2,12 @@
 
 #define READ_BUF_SIZE 1024
 
-static ssize_t refill_buf(int fd, char *buf, size_t *len, size_t *pos);
-static int grow_line(char **lineptr, size_t *cap, size_t need);
+static ssize_t refill_buf(int fd, char *buf, ssize_t *len, ssize_t *pos);
+static int append_char(char **line, size_t *cap, size_t *sz, char c);
 
 /**
  * _getline - read a line from fd using a static buffer
- * @lineptr: address of line buffer pointer
+ * @lineptr: address of buffer pointer
  * @n: address of buffer capacity
  * @fd: file descriptor to read from
  *
@@ -16,24 +16,30 @@ static int grow_line(char **lineptr, size_t *cap, size_t need);
 ssize_t _getline(char **lineptr, size_t *n, int fd)
 {
 	static char buf[READ_BUF_SIZE];
-	static size_t len, pos;
+	static ssize_t len;
+	static ssize_t pos;
+	size_t cap, sz;
 	ssize_t r;
-	size_t sz;
-	char c;
+	char *line;
 
 	if (!lineptr || !n || fd < 0)
 		return (-1);
 
-	if (*lineptr == NULL || *n == 0)
+	line = *lineptr;
+	cap = *n;
+	sz = 0;
+
+	if (!line || cap == 0)
 	{
-		*n = 128;
-		*lineptr = malloc(*n);
-		if (!*lineptr)
+		cap = 128;
+		line = malloc(cap);
+		if (!line)
 			return (-1);
-		(*lineptr)[0] = '\0';
+		line[0] = '\0';
+		*lineptr = line;
+		*n = cap;
 	}
 
-	sz = 0;
 	while (1)
 	{
 		if (pos >= len)
@@ -43,15 +49,13 @@ ssize_t _getline(char **lineptr, size_t *n, int fd)
 				break;
 		}
 
-		c = buf[pos++];
-
-		if (grow_line(lineptr, n, sz + 2) == -1)
+		if (append_char(&line, &cap, &sz, buf[pos++]) == -1)
 			return (-1);
 
-		(*lineptr)[sz++] = c;
-		(*lineptr)[sz] = '\0';
+		*lineptr = line;
+		*n = cap;
 
-		if (c == '\n')
+		if (sz > 0 && line[sz - 1] == '\n')
 			return ((ssize_t)sz);
 	}
 
@@ -62,7 +66,7 @@ ssize_t _getline(char **lineptr, size_t *n, int fd)
 }
 
 /**
- * refill_buf - refill static buffer
+ * refill_buf - refill static buffer using read
  * @fd: file descriptor
  * @buf: buffer
  * @len: current valid length
@@ -70,7 +74,7 @@ ssize_t _getline(char **lineptr, size_t *n, int fd)
  *
  * Return: bytes read, 0 on EOF, -1 on error
  */
-static ssize_t refill_buf(int fd, char *buf, size_t *len, size_t *pos)
+static ssize_t refill_buf(int fd, char *buf, ssize_t *len, ssize_t *pos)
 {
 	ssize_t r;
 
@@ -78,48 +82,43 @@ static ssize_t refill_buf(int fd, char *buf, size_t *len, size_t *pos)
 	if (r <= 0)
 		return (r);
 
-	*len = (size_t)r;
+	*len = r;
 	*pos = 0;
-
 	return (r);
 }
 
 /**
- * grow_line - ensure line buffer has at least need bytes
- * @lineptr: address of line buffer pointer
- * @cap: address of current capacity
- * @need: required capacity
+ * append_char - append a character to line buffer, growing if needed
+ * @line: pointer to line buffer
+ * @cap: pointer to capacity
+ * @sz: pointer to current size (excluding null)
+ * @c: char to append
  *
  * Return: 0 on success, -1 on failure
  */
-static int grow_line(char **lineptr, size_t *cap, size_t need)
+static int append_char(char **line, size_t *cap, size_t *sz, char c)
 {
-	char *tmp;
+	char *new_line;
 	size_t new_cap, i;
 
-	if (*cap >= need)
-		return (0);
-
-	new_cap = *cap;
-	while (new_cap < need)
-		new_cap *= 2;
-
-	tmp = malloc(new_cap);
-	if (!tmp)
-		return (-1);
-
-	i = 0;
-	while (i < *cap)
+	if (*sz + 2 > *cap)
 	{
-		tmp[i] = (*lineptr)[i];
-		if ((*lineptr)[i] == '\0')
-			break;
-		i++;
+		new_cap = (*cap) * 2;
+		new_line = malloc(new_cap);
+		if (!new_line)
+			return (-1);
+
+		for (i = 0; i < *sz; i++)
+			new_line[i] = (*line)[i];
+
+		new_line[*sz] = '\0';
+		free(*line);
+		*line = new_line;
+		*cap = new_cap;
 	}
 
-	free(*lineptr);
-	*lineptr = tmp;
-	*cap = new_cap;
-
+	(*line)[*sz] = c;
+	(*sz)++;
+	(*line)[*sz] = '\0';
 	return (0);
 }
