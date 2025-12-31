@@ -1,132 +1,98 @@
 #include "hsh.h"
 
-char *g_argv0 = NULL;
-unsigned long g_ln = 0;
-
-static volatile sig_atomic_t g_interactive = 0;
-
-static void sigint_handler(int sig);
-static void print_prompt(void);
-static void strip_newline(char *s);
-static int is_blank(char *s);
-
 /**
- * run_shell - simple shell (PATH + args + exit/env + Ctrl+C)
- * @argv0: program name
+ * print_prompt - display shell prompt
  *
- * Return: last status
+ * Return: void
  */
-int run_shell(char *argv0)
-{
-	char *line = NULL;
-	size_t n = 0;
-	ssize_t r;
-	unsigned long ln = 0;
-	int status = 0;
-	char **tokens = NULL;
-
-	g_argv0 = argv0;
-	g_interactive = isatty(STDIN_FILENO);
-
-	/* Handle Ctrl+C */
-	signal(SIGINT, sigint_handler);
-
-	while (1)
-	{
-		if (g_interactive)
-			print_prompt();
-
-		r = _getline(&line, &n, STDIN_FILENO);
-
-		/* Ctrl+C may interrupt read/getline */
-		if (r == -1 && errno == EINTR)
-		{
-			errno = 0;
-			continue;
-		}
-
-		if (r == -1)
-		{
-			if (g_interactive)
-				write(STDOUT_FILENO, "\n", 1);
-			break;
-		}
-
-		ln++;
-		g_ln = ln;
-
-		strip_newline(line);
-
-		if (is_blank(line))
-			continue;
-
-		tokens = split_line(line);
-		if (!tokens || !tokens[0])
-		{
-			free_tokens(tokens);
-			continue;
-		}
-
-		if (handle_builtins(tokens, &status))
-		{
-			free_tokens(tokens);
-			break;
-		}
-
-		execute_tokens(tokens, argv0, ln, &status);
-		free_tokens(tokens);
-	}
-
-	/* IMPORTANT: correct function name (declared in hsh.h) */
-	
-
-	free(line);
-	cleanup_env();
-	return (status);
-}
-
-static void sigint_handler(int sig)
-{
-	(void)sig;
-
-	/* Must not use printf here (not async-signal-safe) */
-	if (g_interactive)
-		write(STDOUT_FILENO, "\n($) ", 5);
-	else
-		write(STDOUT_FILENO, "\n", 1);
-}
-
 static void print_prompt(void)
 {
 	write(STDOUT_FILENO, "($) ", 4);
 }
 
-static void strip_newline(char *s)
+/**
+ * strip_trailing - remove trailing whitespace/newline
+ * @line: input buffer
+ *
+ * Return: void
+ */
+static void strip_trailing(char *line)
 {
-	size_t i = 0;
+	size_t len;
 
-	if (!s)
+	if (line == NULL)
 		return;
 
-	while (s[i] != '\0')
-		i++;
-
-	if (i > 0 && s[i - 1] == '\n')
-		s[i - 1] = '\0';
+	len = strlen(line);
+	while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == ' ' ||
+			   line[len - 1] == '\t' || line[len - 1] == '\r'))
+	{
+		line[len - 1] = '\0';
+		len--;
+	}
 }
 
-static int is_blank(char *s)
+/**
+ * shell_loop - main loop for the shell
+ * @ctx: shell context
+ *
+ * Return: void
+ */
+void shell_loop(shell_ctx_t *ctx)
 {
-	size_t i = 0;
+	char *line;
+	size_t cap;
+	ssize_t nread;
+	char **argv;
 
-	if (!s || s[0] == '\0')
-		return (1);
+	line = NULL;
+	cap = 0;
 
-	while (s[i])
+	signal(SIGINT, sigint_handler);
+
+	while (1)
 	{
-		if (s[i] != ' ' && s[i] != '\t')
-			return (0);
-		i++;
+		if (ctx->interactive)
+			print_prompt();
+
+		nread = my_getline(&line, &cap, STDIN_FILENO);
+		if (nread == -1)
+		{
+			if (errno == EINTR)
+				continue;
+
+			if (ctx->interactive)
+				write(STDOUT_FILENO, "\n", 1);
+			break;
+		}
+
+		ctx->line_num++;
+		strip_trailing(line);
+
+		argv = split_args(line);
+		if (argv == NULL || argv[0] == NULL)
+		{
+			free_args(argv);
+			continue;
+		}
+
+		if (handle_builtins(ctx, argv) == 1)
+		{
+			free_args(argv);
+			if (ctx->should_exit)
+				break;
+			continue;
+		}
+
+		(void)execute_argv(ctx, argv);
+		free_args(argv);
 	}
-	return (1);
+
+	free(line);
+
+	if (ctx->should_exit)
+	{
+		env_free(ctx);
+		exit(ctx->exit_status);
+	}
 }
