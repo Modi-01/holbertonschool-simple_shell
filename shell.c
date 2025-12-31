@@ -28,6 +28,7 @@ int run_shell(char *argv0)
 	g_argv0 = argv0;
 	g_interactive = isatty(STDIN_FILENO);
 
+	/* Handle Ctrl+C */
 	signal(SIGINT, sigint_handler);
 
 	while (1)
@@ -76,38 +77,29 @@ int run_shell(char *argv0)
 		free_tokens(tokens);
 	}
 
-	free(line);
-	env_cleanup();
+	/* IMPORTANT: correct function name (declared in hsh.h) */
+	cleanup_env();
 
+	free(line);
 	return (status);
 }
 
-/**
- * sigint_handler - handle Ctrl+C
- * @sig: signal number
- */
 static void sigint_handler(int sig)
 {
 	(void)sig;
 
+	/* Must not use printf here (not async-signal-safe) */
 	if (g_interactive)
 		write(STDOUT_FILENO, "\n($) ", 5);
 	else
 		write(STDOUT_FILENO, "\n", 1);
 }
 
-/**
- * print_prompt - display prompt
- */
 static void print_prompt(void)
 {
 	write(STDOUT_FILENO, "($) ", 4);
 }
 
-/**
- * strip_newline - remove trailing newline
- * @s: string
- */
 static void strip_newline(char *s)
 {
 	size_t i = 0;
@@ -122,12 +114,6 @@ static void strip_newline(char *s)
 		s[i - 1] = '\0';
 }
 
-/**
- * is_blank - check if line contains only spaces/tabs or is empty
- * @s: string
- *
- * Return: 1 if blank, 0 otherwise
- */
 static int is_blank(char *s)
 {
 	size_t i = 0;
@@ -141,6 +127,5 @@ static int is_blank(char *s)
 			return (0);
 		i++;
 	}
-
 	return (1);
 }
