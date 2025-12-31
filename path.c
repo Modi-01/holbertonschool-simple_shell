@@ -12,7 +12,6 @@ char *resolve_path(char *cmd)
 {
 	char *path, *copy, *dir, *full;
 	size_t len, i, start;
-	char save;
 
 	if (!cmd || _strchr(cmd, '/'))
 		return (NULL);
@@ -29,14 +28,15 @@ char *resolve_path(char *cmd)
 
 	start = 0;
 	i = 0;
+
 	while (1)
 	{
 		if (copy[i] == ':' || copy[i] == '\0')
 		{
-			save = copy[i];
 			copy[i] = '\0';
-
 			dir = &copy[start];
+
+			/* empty entry means current directory */
 			if (dir[0] == '\0')
 				dir = ".";
 
@@ -60,13 +60,16 @@ char *resolve_path(char *cmd)
 			}
 
 			free(full);
-			copy[i] = save;
 
-			if (save == '\0')
+			if (path[i] == '\0')
 				break;
 
 			start = i + 1;
 		}
+
+		if (path[i] == '\0')
+			break;
+
 		i++;
 	}
 
@@ -82,16 +85,24 @@ char *resolve_path(char *cmd)
  */
 static char *_getenv(char *name)
 {
-	size_t i, len;
+	size_t i, j, len;
 
 	if (!name)
 		return (NULL);
 
 	len = _strlen(name);
+
 	for (i = 0; environ[i]; i++)
 	{
-		if (_strncmp(environ[i], name, len) == 0 && environ[i][len] == '=')
+		for (j = 0; j < len; j++)
+		{
+			if (environ[i][j] != name[j])
+				break;
+		}
+
+		if (j == len && environ[i][len] == '=')
 			return (environ[i] + len + 1);
 	}
+
 	return (NULL);
 }
