@@ -35,7 +35,7 @@ int handle_builtins(char **tokens, int *status);
 /* getline.c */
 ssize_t _getline(char **lineptr, size_t *n, int fd);
 
-/* string_utils.c */
+/* string helpers */
 size_t _strlen(const char *s);
 int _strcmp(const char *s1, const char *s2);
 int _strncmp(const char *s1, const char *s2, size_t n);
@@ -53,5 +53,9 @@ int shell_unsetenv(const char *name);
 
 /* cleanup.c */
 void cleanup_env(void);
+
+/* ====== ADD THIS ====== */
+int builtin_cd(char **tokens, int *status);
+/* ====================== */
 
 #endif /* HSH_H */
